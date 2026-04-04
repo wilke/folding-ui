@@ -13,10 +13,6 @@ export interface UnifiedParams {
   device: 'gpu' | 'cpu';
   seed: string;
 
-  // MSA (CWL: use_msa_server, msa_server_url)
-  useMsaServer: boolean;
-  msaServerUrl: string;
-
   // Boltz/Chai (CWL: sampling_steps)
   samplingSteps: number;
 
@@ -33,9 +29,8 @@ export interface UnifiedParams {
   chunkSize: string;
   maxTokensPerBatch: string;
 
-  // Report (CWL: report_name, report_format)
+  // Report (CWL: report_name — report_format is always 'all')
   reportName: string;
-  reportFormat: 'html' | 'pdf';
 }
 
 export const UNIFIED_DEFAULTS: UnifiedParams = {
@@ -45,8 +40,6 @@ export const UNIFIED_DEFAULTS: UnifiedParams = {
   outputFormat: 'pdb',
   device: 'gpu',
   seed: '',
-  useMsaServer: false,
-  msaServerUrl: '',
   samplingSteps: 200,
   usePotentials: false,
   af2ModelPreset: 'monomer',
@@ -56,7 +49,6 @@ export const UNIFIED_DEFAULTS: UnifiedParams = {
   chunkSize: '',
   maxTokensPerBatch: '',
   reportName: 'report',
-  reportFormat: 'html',
 };
 
 const RESOURCE_HINTS: Record<string, string> = {
@@ -94,26 +86,23 @@ function toolLabel(tool: ToolId): string {
  * Rules (accuracy-priority order: Boltz > Chai > AlphaFold > ESMFold):
  *  - CPU + protein-only → ESMFold
  *  - Non-protein entities → skip AlphaFold & ESMFold
- *  - No MSA source → skip Boltz & Chai
+ *  - No MSA file → skip Boltz & Chai (no MSA server available)
  *  - Otherwise first match wins
  */
 function predictAutoTool(
   device: 'gpu' | 'cpu',
   hasNonProtein: boolean,
   hasMsa: boolean,
-  useMsaServer: boolean,
 ): { tool: string; reason: string } | null {
-  const msaAvailable = hasMsa || useMsaServer;
-
   if (device === 'cpu' && !hasNonProtein) {
     return { tool: 'esmfold', reason: 'CPU mode, protein-only' };
   }
 
   for (const t of ['boltz', 'chai', 'alphafold', 'esmfold'] as const) {
     if ((t === 'alphafold' || t === 'esmfold') && hasNonProtein) continue;
-    if ((t === 'boltz' || t === 'chai') && !msaAvailable) continue;
+    if ((t === 'boltz' || t === 'chai') && !hasMsa) continue;
     const reasons: string[] = [];
-    if (t === 'boltz' || t === 'chai') reasons.push('MSA available');
+    if (t === 'boltz' || t === 'chai') reasons.push('MSA provided');
     if (hasNonProtein) reasons.push('multi-entity');
     if (!hasNonProtein && t === 'alphafold') reasons.push('protein-only, no MSA');
     if (!hasNonProtein && t === 'esmfold') reasons.push('protein-only, no MSA');
@@ -382,7 +371,7 @@ export default function UnifiedParameterForm({ tool, value, onChange, onBrowseOu
       {showMsa(tool) && (
         <Panel
           title="Multiple Sequence Alignment"
-          hint="Pre-computed MSA file or server-side generation (optional)"
+          hint="Provide a pre-computed MSA file to improve accuracy (optional)"
           open={msaOpen}
           onToggle={() => setMsaOpen(!msaOpen)}
         >
@@ -398,38 +387,11 @@ export default function UnifiedParameterForm({ tool, value, onChange, onBrowseOu
             dropHint="Drop .a3m, .sto, .pqt file here or"
           />
 
-          {isDiffusion(tool) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                <input
-                  type="checkbox"
-                  checked={value.useMsaServer}
-                  onChange={(e) => set('useMsaServer', e.target.checked)}
-                />
-                Use MSA Server
-                <span style={{ fontSize: 11, color: '#94A3B8' }}>(Boltz/Chai — ColabFold MMseqs2)</span>
-              </label>
-              {value.useMsaServer && (
-                <div>
-                  <label className="field-label">MSA Server URL</label>
-                  <input
-                    type="text"
-                    className="field-input mono"
-                    placeholder="Default server (leave blank for default)"
-                    value={value.msaServerUrl}
-                    onChange={(e) => set('msaServerUrl', e.target.value)}
-                  />
-                  <div className="field-hint">Custom MSA server URL; leave empty for default ColabFold server</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {tool === 'alphafold' && (
-            <div className="info-box" style={{ marginTop: 12 }}>
-              AlphaFold 2 uses jackhmmer for MSA generation. Upload a precomputed MSA to skip this step.
-            </div>
-          )}
+          <div className="info-box" style={{ marginTop: 12 }}>
+            {tool === 'alphafold'
+              ? 'AlphaFold 2 uses jackhmmer for MSA generation. Upload a precomputed MSA to skip this step.'
+              : 'Providing an MSA improves prediction accuracy for Boltz and Chai. Without an MSA, single-sequence mode is used.'}
+          </div>
         </Panel>
       )}
 
@@ -459,15 +421,14 @@ export default function UnifiedParameterForm({ tool, value, onChange, onBrowseOu
           </div>
           <div>
             <label className="field-label">Report Format</label>
-            <select
+            <input
+              type="text"
               className="field-input"
-              value={value.reportFormat}
-              onChange={(e) => set('reportFormat', e.target.value as 'html' | 'pdf')}
-            >
-              <option value="html">HTML</option>
-              <option value="pdf">PDF</option>
-            </select>
-            <div className="field-hint">Output format [default: html]</div>
+              value="All (HTML + PDF + JSON)"
+              disabled
+              style={{ background: '#F1F5F9', color: '#64748B' }}
+            />
+            <div className="field-hint">All report formats are generated automatically</div>
           </div>
           <div />
         </div>
@@ -476,7 +437,7 @@ export default function UnifiedParameterForm({ tool, value, onChange, onBrowseOu
       {/* ── Resource Estimate ──────────────────────────── */}
       {(() => {
         const prediction = tool === 'auto'
-          ? predictAutoTool(value.device, !!hasNonProteinEntities, !!msaValue.trim(), value.useMsaServer)
+          ? predictAutoTool(value.device, !!hasNonProteinEntities, !!msaValue.trim())
           : null;
         const effectiveTool = prediction?.tool ?? tool;
         return (
@@ -566,15 +527,13 @@ export function buildUnifiedCwlInputs(
   // MSA
   if (entities.msa) inputs.msa = entities.msa;
 
-  // Report options — only include when different from defaults
+  // Report options — always generate all formats
   if (params.reportName && params.reportName !== 'report') inputs.report_name = params.reportName;
-  if (params.reportFormat !== 'html') inputs.report_format = params.reportFormat;
+  inputs.report_format = 'all';
 
   // Boltz / Chai
   if (tool === 'boltz' || tool === 'chai') {
     if (params.samplingSteps !== 200) inputs.sampling_steps = params.samplingSteps;
-    if (params.useMsaServer) inputs.use_msa_server = true;
-    if (params.msaServerUrl) inputs.msa_server_url = params.msaServerUrl;
   }
 
   // Boltz only

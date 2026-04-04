@@ -6,7 +6,7 @@ import ParameterForm, { DEFAULT_PARAMS, buildPerToolCwlInputs, type PredictionPa
 import UnifiedParameterForm, { UNIFIED_DEFAULTS, buildUnifiedCwlInputs, type UnifiedParams } from '../components/UnifiedParameterForm';
 import EntityInputPanel, { EMPTY_ENTITIES, wsPathToFileEntry, type EntityInputs, type FileEntry } from '../components/EntityInputPanel';
 import BoltzInputBuilder, {
-  EMPTY_BOLTZ_INPUT, generateBoltzYaml, needsMsaServer,
+  EMPTY_BOLTZ_INPUT, generateBoltzYaml,
   type BoltzInputState,
 } from '../components/BoltzInputBuilder';
 import SubmitWizard from '../components/SubmitWizard';
@@ -231,9 +231,6 @@ export default function SubmitPage() {
       workflowId = TOOL_WORKFLOWS[tool] ?? tool;
       inputs = buildPerToolCwlInputs(tool, perToolParams, inputRef);
 
-      if (needsMsaServer(boltzInput)) {
-        inputs.use_msa_server = true;
-      }
       // Attach generated YAML for reference
       (inputs as Record<string, unknown>)._boltz_yaml_preview = yaml;
     } else {
@@ -345,11 +342,6 @@ export default function SubmitPage() {
 
         workflowId = TOOL_WORKFLOWS[tool] ?? tool;
         inputs = buildPerToolCwlInputs(tool, perToolParams, inputRef);
-
-        // If any protein uses MSA server mode, add the flag
-        if (needsMsaServer(boltzInput)) {
-          inputs.use_msa_server = true;
-        }
       } else {
         // Per-tool mode: single input file (simple FASTA)
         let inputRef: Record<string, unknown>;
@@ -415,8 +407,8 @@ export default function SubmitPage() {
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#fff' }}>Predict Structure</h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--accent-on-dark)' }}>
           {isUnified
-            ? 'Unified prediction \u2014 Boltz-2 \u00b7 Chai-1 \u00b7 AlphaFold 2 \u00b7 ESMFold'
-            : 'Per-tool workflows \u2014 full control over tool-specific parameters'}
+            ? 'Boltz-2 \u00b7 Chai-1 \u00b7 AlphaFold 2 \u00b7 ESMFold'
+            : 'Expert mode \u2014 individual tool workflows with full parameter control'}
         </p>
       </div>
 

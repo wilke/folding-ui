@@ -690,7 +690,7 @@ function ConfidenceDisplay({ data }: { data: Record<string, unknown> }) {
       {/* Per-residue arrays — show summary (mean, min, max, count) */}
       {arrayEntries.map(([key, arr]) => {
         let sum = 0, min = Infinity, max = -Infinity;
-        for (let i = 0; i < arr.length; i++) { sum += arr[i]; if (arr[i] < min) min = arr[i]; if (arr[i] > max) max = arr[i]; }
+        for (let i = 0; i < arr.length; i++) { const v = arr[i] ?? 0; sum += v; if (v < min) min = v; if (v > max) max = v; }
         const mean = sum / (arr.length || 1);
         return (
           <div key={key}>

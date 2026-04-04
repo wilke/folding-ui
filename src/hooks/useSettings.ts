@@ -18,10 +18,10 @@ export type ColorScheme = 'teal' | 'cepi';
 export const UNIFIED_WORKFLOW = 'protein-structure-prediction';
 
 export const TOOL_WORKFLOWS: Record<string, string> = {
-  boltz: 'boltz',
-  chai: 'chai',
-  alphafold: 'alphafold',
-  esmfold: 'esmfold',
+  boltz: 'boltz-report',
+  chai: 'chai-report',
+  alphafold: 'alphafold-report',
+  esmfold: 'esmfold-report',
 };
 
 /** All individual workflow names (for filtering jobs). */
@@ -69,25 +69,23 @@ interface ToolInputMap {
   outputFormat?: string;
   seed?: string;
   device?: string;
-  msaServer?: string;
   samplingSteps?: string;
 }
 
 /** Maps each tool to its CWL input names. */
 export const TOOL_INPUT_MAP: Record<string, ToolInputMap> = {
   boltz: {
-    workflow: 'boltz',
+    workflow: 'boltz-report',
     inputFile: 'input_file',
     inputFileType: 'File',
     numSamples: 'diffusion_samples',
     numRecycles: 'recycling_steps',
     outputDir: 'output_dir',
     outputFormat: 'output_format',
-    msaServer: 'use_msa_server',
     samplingSteps: 'sampling_steps',
   },
   chai: {
-    workflow: 'chai',
+    workflow: 'chai-report',
     inputFile: 'input_fasta',
     inputFileType: 'File',
     numSamples: 'num_diffn_samples',
@@ -95,11 +93,10 @@ export const TOOL_INPUT_MAP: Record<string, ToolInputMap> = {
     outputDir: 'output_directory',
     seed: 'seed',
     device: 'device',
-    msaServer: 'use_msa_server',
     samplingSteps: 'num_diffn_timesteps',
   },
   alphafold: {
-    workflow: 'alphafold',
+    workflow: 'alphafold-report',
     inputFile: 'fasta_paths',
     inputFileType: 'File',
     numRecycles: undefined,
@@ -107,7 +104,7 @@ export const TOOL_INPUT_MAP: Record<string, ToolInputMap> = {
     seed: 'random_seed',
   },
   esmfold: {
-    workflow: 'esmfold',
+    workflow: 'esmfold-report',
     inputFile: 'sequences',
     inputFileType: 'File',
     numRecycles: 'num_recycles',

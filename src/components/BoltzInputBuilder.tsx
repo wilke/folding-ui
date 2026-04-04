@@ -7,7 +7,7 @@ import { useState, useRef } from 'react';
 export interface ProteinEntity {
   id: string;
   sequence: string;
-  msaMode: 'server' | 'empty';
+  msaMode: 'auto' | 'empty';
   cyclic: boolean;
   modifications: { position: string; ccd: string }[];
 }
@@ -51,7 +51,7 @@ export interface BoltzInputState {
    ================================================================ */
 
 function makeProtein(id: string, sequence = ''): ProteinEntity {
-  return { id, sequence, msaMode: 'server', cyclic: false, modifications: [] };
+  return { id, sequence, msaMode: 'auto', cyclic: false, modifications: [] };
 }
 
 function makeLigand(id: string): LigandEntity {
@@ -165,9 +165,9 @@ export function generateBoltzYaml(state: BoltzInputState): string {
   return lines.join('\n') + '\n';
 }
 
-/** Returns true if any protein uses MSA server mode. */
-export function needsMsaServer(state: BoltzInputState): boolean {
-  return state.proteins.some((p) => p.msaMode === 'server');
+/** Returns true if any protein uses auto MSA mode (not single-sequence). */
+export function needsMsa(state: BoltzInputState): boolean {
+  return state.proteins.some((p) => p.msaMode === 'auto');
 }
 
 /* ================================================================
@@ -569,12 +569,12 @@ function ProteinCard({ protein, index, canRemove, onChange, onRemove, onAddMod, 
       {/* MSA mode */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
         <label className="field-label" style={{ margin: 0, minWidth: 32 }}>
-          MSA <Tip text="Multiple Sequence Alignment. 'Auto-generate' uses mmseqs2 server (recommended). 'None' runs single-sequence mode (faster, less accurate)." />
+          MSA <Tip text="Multiple Sequence Alignment. 'Use MSA' expects pre-computed MSA files. 'None' runs single-sequence mode (faster, less accurate)." />
         </label>
         <label className="boltz-radio">
-          <input type="radio" name={`msa-${index}`} checked={protein.msaMode === 'server'}
-            onChange={() => onChange({ msaMode: 'server' })} />
-          Auto-generate
+          <input type="radio" name={`msa-${index}`} checked={protein.msaMode === 'auto'}
+            onChange={() => onChange({ msaMode: 'auto' })} />
+          Use MSA
         </label>
         <label className="boltz-radio">
           <input type="radio" name={`msa-${index}`} checked={protein.msaMode === 'empty'}

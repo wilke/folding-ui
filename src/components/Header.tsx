@@ -110,19 +110,19 @@ export default function Header() {
                     className={`settings-mode-btn${workflowMode === 'unified' ? ' active' : ''}`}
                     onClick={() => setWorkflowMode('unified')}
                   >
-                    Unified
+                    Standard
                   </button>
                   <button
                     className={`settings-mode-btn${workflowMode === 'individual' ? ' active' : ''}`}
                     onClick={() => setWorkflowMode('individual')}
                   >
-                    Per-Tool
+                    Expert
                   </button>
                 </div>
                 <div className="settings-hint">
                   {workflowMode === 'unified'
-                    ? 'Single predict-structure workflow; tool selected as input parameter.'
-                    : 'Separate CWL workflow per tool (Boltz, Chai, AlphaFold, ESMFold).'}
+                    ? 'Unified predict-structure workflow with guided submission.'
+                    : 'Individual tool workflows with full parameter control.'}
                 </div>
               </div>
 

@@ -47,10 +47,7 @@ function predictAutoTool(
   device: 'gpu' | 'cpu',
   hasNonProtein: boolean,
   hasMsa: boolean,
-  useMsaServer: boolean,
 ): { tool: string; label: string; reason: string } | null {
-  const msaAvailable = hasMsa || useMsaServer;
-
   if (device === 'cpu' && !hasNonProtein) {
     return { tool: 'esmfold', label: 'ESMFold', reason: 'CPU mode, protein-only' };
   }
@@ -61,9 +58,9 @@ function predictAutoTool(
 
   for (const t of ['boltz', 'chai', 'alphafold', 'esmfold']) {
     if ((t === 'alphafold' || t === 'esmfold') && hasNonProtein) continue;
-    if ((t === 'boltz' || t === 'chai') && !msaAvailable) continue;
+    if ((t === 'boltz' || t === 'chai') && !hasMsa) continue;
     const reasons: string[] = [];
-    if (msaAvailable && (t === 'boltz' || t === 'chai')) reasons.push('MSA available');
+    if (hasMsa && (t === 'boltz' || t === 'chai')) reasons.push('MSA provided');
     if (hasNonProtein) reasons.push('multi-entity');
     if (!reasons.length) reasons.push('highest accuracy available');
     return { tool: t, label: toolLabels[t] ?? t, reason: reasons.join(', ') };
@@ -139,7 +136,7 @@ export default function SubmitWizard(props: WizardProps) {
     props.entities.glycans.length > 0;
   const hasMsa = !!props.msaValue.trim();
   const prediction = predictAutoTool(
-    props.params.device, hasNonProtein, hasMsa, props.params.useMsaServer,
+    props.params.device, hasNonProtein, hasMsa,
   );
   const entityCount =
     props.entities.dnas.length + props.entities.rnas.length +
@@ -283,34 +280,10 @@ export default function SubmitWizard(props: WizardProps) {
             dropHint="Drop .a3m, .sto, .pqt file here or"
           />
 
-          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={props.params.useMsaServer}
-                onChange={(e) => set('useMsaServer', e.target.checked)}
-              />
-              Use MSA Server
-              <span style={{ fontSize: 11, color: '#94A3B8' }}>(generate alignment on-the-fly via ColabFold MMseqs2)</span>
-            </label>
-            {props.params.useMsaServer && (
-              <div style={{ marginLeft: 24 }}>
-                <label className="field-label">MSA Server URL</label>
-                <input
-                  type="text"
-                  className="field-input mono"
-                  placeholder="Leave blank for default ColabFold server"
-                  value={props.params.msaServerUrl}
-                  onChange={(e) => set('msaServerUrl', e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
           {prediction && (
             <div className="info-box" style={{ marginTop: 16 }}>
               <strong>Tool impact:</strong>{' '}
-              {hasMsa || props.params.useMsaServer ? (
+              {hasMsa ? (
                 <>
                   With MSA, <strong>{prediction.label}</strong> will be auto-selected for best accuracy.
                 </>
@@ -318,7 +291,7 @@ export default function SubmitWizard(props: WizardProps) {
                 <>
                   Without MSA, Boltz and Chai are skipped.{' '}
                   {hasNonProtein
-                    ? 'No tool supports your entity combination without MSA — consider enabling the MSA server.'
+                    ? 'No tool supports your entity combination without MSA — provide an MSA file to enable Boltz or Chai.'
                     : <><strong>AlphaFold 2</strong> will generate its own alignment (slower), or <strong>ESMFold</strong> will run without one.</>
                   }
                 </>
@@ -327,8 +300,9 @@ export default function SubmitWizard(props: WizardProps) {
           )}
 
           <HelpBox>
-            <strong>Don't have an MSA?</strong> Enable the MSA Server checkbox to generate one automatically.
-            Alternatively, AlphaFold creates its own, and ESMFold works without one entirely.
+            <strong>Don't have an MSA?</strong> You can skip this step.
+            AlphaFold generates its own alignment, and ESMFold works without one entirely.
+            For Boltz or Chai, provide a pre-computed MSA file (.a3m, .sto, or .pqt).
           </HelpBox>
         </div>
       )}
@@ -381,7 +355,7 @@ export default function SubmitWizard(props: WizardProps) {
               <div className="wizard-summary-item">
                 <span className="wizard-summary-label">MSA</span>
                 <span className="wizard-summary-value">
-                  {hasMsa ? 'Provided' : props.params.useMsaServer ? 'MSA Server' : 'None'}
+                  {hasMsa ? 'Provided' : 'None'}
                 </span>
               </div>
             </div>
