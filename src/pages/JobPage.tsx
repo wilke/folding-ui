@@ -7,7 +7,7 @@ import { useSubmissionSSE } from '../hooks/useSSE';
 import JobStatusBadge from '../components/JobStatusBadge';
 import StructureViewer from '../components/StructureViewer';
 import PlddtChart from '../components/PlddtChart';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 
 type TabId = 'overview' | 'results' | 'report' | 'tasks' | 'files';
 
@@ -689,9 +689,9 @@ function ConfidenceDisplay({ data }: { data: Record<string, unknown> }) {
 
       {/* Per-residue arrays — show summary (mean, min, max, count) */}
       {arrayEntries.map(([key, arr]) => {
-        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-        const min = Math.min(...arr);
-        const max = Math.max(...arr);
+        let sum = 0, min = Infinity, max = -Infinity;
+        for (let i = 0; i < arr.length; i++) { sum += arr[i]; if (arr[i] < min) min = arr[i]; if (arr[i] > max) max = arr[i]; }
+        const mean = sum / (arr.length || 1);
         return (
           <div key={key}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
@@ -799,6 +799,10 @@ function ReportTab({ parsed, isComplete }: { parsed: ParsedOutputs | null; isCom
     staleTime: Infinity,
   });
 
+  // Revoke blob URL on unmount to prevent memory leak
+  useEffect(() => {
+    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
+  }, [blobUrl]);
 
   if (!isComplete) {
     return (
@@ -877,8 +881,8 @@ function TasksTab({ tasks, submissionId }: { tasks: Task[]; submissionId: string
           </thead>
           <tbody>
             {tasks.map((t) => (
-              <>
-                <tr key={t.id}>
+              <Fragment key={t.id}>
+                <tr>
                   <td><code>{t.step_id}</code></td>
                   <td><span className={`badge ${taskStateBadge(t.state)}`}>{t.state}</span></td>
                   <td>{t.runtime_ms ? `${(t.runtime_ms / 1000).toFixed(1)}s` : '-'}</td>
@@ -916,7 +920,7 @@ function TasksTab({ tasks, submissionId }: { tasks: Task[]; submissionId: string
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -1019,8 +1023,8 @@ function OutputsByKey({ files }: { files: OutputFile[] }) {
       </thead>
       <tbody>
         {[...grouped.entries()].map(([key, group]) => (
-          <>
-            <tr key={`hdr-${key}`}>
+          <Fragment key={key}>
+            <tr>
               <td colSpan={3} style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', paddingTop: 16, paddingBottom: 4, borderBottom: 'none' }}>
                 {key.replace(/_/g, ' ')}
               </td>
@@ -1044,7 +1048,7 @@ function OutputsByKey({ files }: { files: OutputFile[] }) {
                 </tr>
               );
             })}
-          </>
+          </Fragment>
         ))}
       </tbody>
     </table>

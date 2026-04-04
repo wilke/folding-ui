@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 
 interface PlddtChartProps {
   /** Per-residue pLDDT scores (0-100 scale) or (0-1 scale, auto-detected). */
@@ -23,13 +23,23 @@ function plddtColor(v: number): string {
 export default function PlddtChart({ values, height = 180 }: PlddtChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Auto-detect 0-1 vs 0-100 scale (avoid spread for large arrays)
-  let maxVal = 0;
-  for (let i = 0; i < values.length; i++) {
-    if ((values[i] ?? 0) > maxVal) maxVal = values[i] ?? 0;
-  }
-  const scale = maxVal <= 1.0 ? 100 : 1;
-  const scaled = scale === 100 ? values.map((v) => v * 100) : values;
+  // Memoize scaled values and stats to avoid re-creating arrays and redrawing canvas every render
+  const { scaled, mean, minVal, maxScaled } = useMemo(() => {
+    let mx = 0;
+    for (let i = 0; i < values.length; i++) {
+      if ((values[i] ?? 0) > mx) mx = values[i] ?? 0;
+    }
+    const s = mx <= 1.0 ? 100 : 1;
+    const arr = s === 100 ? values.map((v) => v * 100) : values;
+    let sum = 0, mn = Infinity, mxs = -Infinity;
+    for (let i = 0; i < arr.length; i++) {
+      const v = arr[i] ?? 0;
+      sum += v;
+      if (v < mn) mn = v;
+      if (v > mxs) mxs = v;
+    }
+    return { scaled: arr, mean: sum / (arr.length || 1), minVal: mn === Infinity ? 0 : mn, maxScaled: mxs === -Infinity ? 0 : mxs };
+  }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -100,16 +110,6 @@ export default function PlddtChart({ values, height = 180 }: PlddtChartProps) {
     ctx.lineWidth = 1;
     ctx.strokeRect(padLeft, padTop, plotW, plotH);
   }, [scaled, height]);
-
-  // Compute stats without spread (safe for large arrays)
-  let sum = 0, minVal = Infinity, maxScaled = -Infinity;
-  for (let i = 0; i < scaled.length; i++) {
-    const v = scaled[i] ?? 0;
-    sum += v;
-    if (v < minVal) minVal = v;
-    if (v > maxScaled) maxScaled = v;
-  }
-  const mean = sum / scaled.length;
 
   return (
     <div>

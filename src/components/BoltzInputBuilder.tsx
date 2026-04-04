@@ -314,7 +314,7 @@ export default function BoltzInputBuilder({ value, onChange }: Props) {
       {/* ── Protein entity cards ── */}
       {value.proteins.map((prot, pi) => (
         <ProteinCard
-          key={pi}
+          key={prot.id}
           protein={prot}
           index={pi}
           canRemove={value.proteins.length > 1}
@@ -329,7 +329,7 @@ export default function BoltzInputBuilder({ value, onChange }: Props) {
       {/* ── Ligand entity cards ── */}
       {value.ligands.map((lig, li) => (
         <LigandCard
-          key={li}
+          key={lig.id}
           ligand={lig}
           index={li}
           onChange={(patch) => setLigand(li, patch)}
