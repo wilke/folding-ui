@@ -29,7 +29,7 @@ export default function LoginForm() {
       <div className="card login-card">
         <div className="gradient-hdr" style={{ borderRadius: '12px 12px 0 0' }}>
           <h2 style={{ color: '#fff', margin: 0, fontSize: 18 }}>Sign In</h2>
-          <p style={{ color: '#90E0EF', margin: '4px 0 0', fontSize: 13 }}>
+          <p style={{ color: 'var(--accent-on-dark)', margin: '4px 0 0', fontSize: 13 }}>
             Use your BV-BRC account credentials
           </p>
         </div>

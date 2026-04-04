@@ -14,7 +14,12 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`GoWe ${res.status}: ${body}`);
+    const isHtml = body.trimStart().startsWith('<') ||
+      (res.headers.get('content-type') ?? '').includes('text/html');
+    const message = isHtml
+      ? `GoWe server is unreachable (HTTP ${res.status}). Please try again later.`
+      : `GoWe ${res.status}: ${body}`;
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }
@@ -23,7 +28,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type SubmissionState =
   | 'pending' | 'scheduled' | 'queued' | 'running'
-  | 'success' | 'failed' | 'cancelled';
+  | 'success' | 'completed' | 'failed' | 'cancelled';
 
 export interface TaskSummary {
   total: number;
@@ -88,6 +93,8 @@ export async function listWorkflows(): Promise<Workflow[]> {
 export interface SubmitJobInput {
   workflow_id: string;
   inputs: Record<string, unknown>;
+  /** ws:// URI for workspace destination where results will be uploaded. */
+  output_destination?: string;
   labels?: Record<string, string>;
 }
 
@@ -104,6 +111,7 @@ export interface ListSubmissionsParams {
   limit?: number;
   offset?: number;
   state?: SubmissionState;
+  workflow_id?: string;
 }
 
 export async function listSubmissions(params: ListSubmissionsParams = {}): Promise<PaginatedResponse<Submission>> {
@@ -111,12 +119,19 @@ export async function listSubmissions(params: ListSubmissionsParams = {}): Promi
   if (params.limit) query.set('limit', String(params.limit));
   if (params.offset) query.set('offset', String(params.offset));
   if (params.state) query.set('state', params.state);
+  if (params.workflow_id) query.set('workflow_id', params.workflow_id);
   const qs = query.toString();
-  return apiFetch<PaginatedResponse<Submission>>(`/submissions${qs ? `?${qs}` : ''}`);
+  const result = await apiFetch<PaginatedResponse<Submission>>(`/submissions${qs ? `?${qs}` : ''}`);
+  if (!result.data) result.data = [];
+  for (const s of result.data) {
+    s.state = s.state.toLowerCase() as SubmissionState;
+  }
+  return result;
 }
 
 export async function getSubmission(id: string): Promise<Submission> {
   const res = await apiFetch<{ data: Submission }>(`/submissions/${id}`);
+  res.data.state = res.data.state.toLowerCase() as SubmissionState;
   return res.data;
 }
 

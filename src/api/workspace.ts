@@ -1,6 +1,6 @@
 import { getToken } from './auth';
 
-const WS_BASE = '/folding/ws-api';
+const WS_BASE = '/folding/ws-api/';
 
 let rpcId = 0;
 
@@ -11,29 +11,40 @@ interface RpcResponse<T> {
 
 async function rpcCall<T>(method: string, params: Record<string, unknown>): Promise<T> {
   const token = getToken();
+  const reqBody = {
+    jsonrpc: '1.1',
+    method,
+    params: [params],
+    id: ++rpcId,
+  };
+  console.debug('[WS-RPC]', method, params, { hasToken: !!token, tokenPrefix: token?.slice(0, 30) });
+
   const res = await fetch(WS_BASE, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: token } : {}),
     },
-    body: JSON.stringify({
-      jsonrpc: '1.1',
-      method,
-      params: [params],
-      id: ++rpcId,
-    }),
+    body: JSON.stringify(reqBody),
   });
 
   if (!res.ok) {
-    throw new Error(`Workspace ${res.status}: ${await res.text().catch(() => '')}`);
+    const text = await res.text().catch(() => '');
+    console.error('[WS-RPC] HTTP error', res.status, text.slice(0, 200));
+    throw new Error(`Workspace ${res.status}: ${text}`);
   }
 
   const body = (await res.json()) as RpcResponse<T>;
+  console.debug('[WS-RPC] response', JSON.stringify(body).slice(0, 500));
   if (body.error) {
     throw new Error(`Workspace RPC: ${body.error.message}`);
   }
-  return body.result;
+  // JSON-RPC 1.1 wraps the result in an array: result: [data]
+  const result = body.result;
+  if (Array.isArray(result)) {
+    return result[0] as T;
+  }
+  return result;
 }
 
 // --- Types ---
@@ -44,9 +55,11 @@ async function rpcCall<T>(method: string, params: Record<string, unknown>): Prom
  * [5] owner, [6] size, [7] user_metadata, [8] auto_metadata,
  * [9] user_perm, [10] global_perm, [11] shock_url, [12] error
  */
+type MetaMap = Record<string, string | number>;
+
 export type ObjectMeta = [
   string, string, string, string, string,
-  string, number, Record<string, string>, Record<string, string>,
+  string, number, MetaMap, MetaMap,
   string, string, string, string,
 ];
 
@@ -58,8 +71,8 @@ export interface WsObject {
   id: string;
   owner: string;
   size: number;
-  userMetadata: Record<string, string>;
-  autoMetadata: Record<string, string>;
+  userMetadata: MetaMap;
+  autoMetadata: MetaMap;
 }
 
 function parseObjectMeta(tuple: ObjectMeta): WsObject {
@@ -80,14 +93,14 @@ function parseObjectMeta(tuple: ObjectMeta): WsObject {
 
 /** List contents of a workspace directory. */
 export async function wsLs(path: string): Promise<WsObject[]> {
-  const result = await rpcCall<Record<string, ObjectMeta[]>>('ls', { paths: [path] });
+  const result = await rpcCall<Record<string, ObjectMeta[]>>('Workspace.ls', { paths: [path] });
   const entries = result[path] ?? [];
   return entries.map(parseObjectMeta);
 }
 
 /** Get workspace objects (with or without data). */
 export async function wsGet(paths: string[], metadataOnly = false): Promise<Array<[WsObject, unknown]>> {
-  const result = await rpcCall<Array<[ObjectMeta, unknown]>>('get', {
+  const result = await rpcCall<Array<[ObjectMeta, unknown]>>('Workspace.get', {
     objects: paths,
     metadata_only: metadataOnly,
   });
@@ -96,19 +109,49 @@ export async function wsGet(paths: string[], metadataOnly = false): Promise<Arra
 
 /** Check if objects exist. */
 export async function wsExists(paths: string[]): Promise<Record<string, boolean>> {
-  return rpcCall<Record<string, boolean>>('objects_exist', { objects: paths });
+  return rpcCall<Record<string, boolean>>('Workspace.objects_exist', { objects: paths });
 }
 
 /** Get a download URL for a workspace object. */
 export async function wsGetDownloadUrl(path: string): Promise<string> {
-  const result = await rpcCall<string>('get_download_url', { path });
-  return result;
+  const result = await rpcCall<string[]>('Workspace.get_download_url', { objects: [path] });
+  // Result is an array of URLs; return the first one
+  if (Array.isArray(result)) return result[0] ?? '';
+  return result as unknown as string;
 }
 
 /** Create a workspace folder. */
 export async function wsCreateFolder(path: string): Promise<WsObject> {
-  const result = await rpcCall<ObjectMeta[]>('create', {
+  const result = await rpcCall<ObjectMeta[]>('Workspace.create', {
     objects: [[path, 'folder', {}, '']],
   });
   return parseObjectMeta(result[0]!);
+}
+
+/** Create a workspace folder if it doesn't already exist. */
+export async function wsEnsureFolder(path: string): Promise<void> {
+  try {
+    await wsCreateFolder(path);
+  } catch (err) {
+    // Ignore "already exists" errors
+    if (err instanceof Error && /exists|already/i.test(err.message)) return;
+    throw err;
+  }
+}
+
+/**
+ * Upload text content to workspace as a file object.
+ * Uses Workspace.create with inline data.
+ * Returns the full workspace path of the created object.
+ */
+export async function wsUploadFile(
+  destPath: string,
+  content: string,
+  type = 'unspecified',
+): Promise<string> {
+  await rpcCall<ObjectMeta[]>('Workspace.create', {
+    objects: [[destPath, type, {}, content]],
+    overwrite: true,
+  });
+  return destPath;
 }
