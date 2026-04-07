@@ -11,9 +11,10 @@ import PAEHeatmap from '../components/PAEHeatmap';
 import ContactMapCanvas from '../components/ContactMapCanvas';
 import SSSequenceBar from '../components/SSSequenceBar';
 import { parsePdb } from '../utils/pdbParser';
+import CompareTab from '../components/CompareTab';
 import { useState, useMemo, useEffect, Fragment } from 'react';
 
-type TabId = 'overview' | 'results' | 'report' | 'tasks' | 'files';
+type TabId = 'overview' | 'results' | 'compare' | 'report' | 'tasks' | 'files';
 
 export default function JobPage() {
   const { id } = useParams<{ id: string }>();
@@ -105,13 +106,17 @@ export default function JobPage() {
   const isComplete = stateLC === 'success' || stateLC === 'completed';
 
   // Show Results tab only for completed jobs with outputs
+  const hasMultipleModels = (parsed?.structureFiles.length ?? 0) >= 2;
   const tabs: TabId[] = isComplete && parsed
-    ? ['overview', 'results', 'report', 'tasks', 'files']
+    ? hasMultipleModels
+      ? ['overview', 'results', 'compare', 'report', 'tasks', 'files']
+      : ['overview', 'results', 'report', 'tasks', 'files']
     : ['overview', 'report', 'tasks', 'files'];
 
   const tabLabels: Record<TabId, string> = {
     overview: 'Overview',
     results: 'Results',
+    compare: 'Compare',
     report: 'Report',
     tasks: 'Tasks',
     files: 'Files',
@@ -162,6 +167,7 @@ export default function JobPage() {
 
       {activeTab === 'overview' && <OverviewTab submission={submission} />}
       {activeTab === 'results' && parsed && <ResultsTab parsed={parsed} />}
+      {activeTab === 'compare' && parsed && <CompareTab structureFiles={parsed.structureFiles} />}
       {activeTab === 'report' && <ReportTab parsed={parsed} isComplete={isComplete} />}
       {activeTab === 'tasks' && <TasksTab tasks={tasks ?? []} submissionId={id!} />}
       {activeTab === 'files' && <FilesTab parsed={parsed} isComplete={isComplete} />}

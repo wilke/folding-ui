@@ -60,6 +60,16 @@ export interface InputFile {
   inputKey: string;
 }
 
+/** A structure file (PDB/CIF) found in the outputs. */
+export interface StructureFile {
+  name: string;
+  wsPath: string;
+  format: 'pdb' | 'cif';
+  outputKey: string;
+  dirPath: string[];
+  size: number;
+}
+
 export interface ParsedOutputs {
   reportPath: string | null;
   structurePath: string | null;
@@ -67,6 +77,8 @@ export interface ParsedOutputs {
   confidencePath: string | null;
   metadataPath: string | null;
   analysisPath: string | null;
+  /** All structure files found (model_1.pdb, model_2.pdb, etc.). */
+  structureFiles: StructureFile[];
   allFiles: OutputFile[];
   allDirs: OutputDir[];
   inputFiles: InputFile[];
@@ -138,6 +150,7 @@ export function parseOutputs(outputs: Record<string, unknown>, inputs?: Record<s
     confidencePath: null,
     metadataPath: null,
     analysisPath: null,
+    structureFiles: [],
     allFiles: [],
     allDirs: [],
     inputFiles: [],
@@ -167,10 +180,11 @@ export function parseOutputs(outputs: Record<string, unknown>, inputs?: Record<s
       const ext = f.nameext ?? '';
       const name = f.basename ?? '';
 
-      result.allFiles.push({ name, wsPath: wsP, size: f.size ?? 0, ext, outputKey: key, dirPath, checksum: f.checksum });
+      const fSize = f.size ?? 0;
+      result.allFiles.push({ name, wsPath: wsP, size: fSize, ext, outputKey: key, dirPath, checksum: f.checksum });
 
       // Classify by role
-      classifyFile(result, name, ext, wsP, key);
+      classifyFile(result, name, ext, wsP, key, fSize, dirPath);
     }
 
     // Collect directories
@@ -213,14 +227,18 @@ function classifyFile(
   ext: string,
   wsPath: string,
   outputKey: string,
+  size: number,
+  dirPath: string[],
 ): void {
   const lower = name.toLowerCase();
 
   // Structure: .pdb or .cif files (prefer first match, prefer model_1)
   if (ext === '.pdb' || ext === '.cif') {
+    const fmt: 'pdb' | 'cif' = ext === '.cif' ? 'cif' : 'pdb';
+    result.structureFiles.push({ name, wsPath, format: fmt, outputKey, dirPath, size });
     if (!result.structurePath || lower.startsWith('model_')) {
       result.structurePath = wsPath;
-      result.structureFormat = ext === '.cif' ? 'cif' : 'pdb';
+      result.structureFormat = fmt;
     }
     return;
   }
