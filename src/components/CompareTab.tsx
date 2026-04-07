@@ -434,16 +434,18 @@ export default function CompareTab({ structureFiles }: Props) {
     } | undefined;
     if (!$3Dmol) return;
 
+    // Clear any previous viewer canvas (3Dmol appends a canvas each time)
+    viewerRef.current.innerHTML = '';
+
     const viewer = $3Dmol.createViewer(viewerRef.current, {
       backgroundColor: '#f8fafc',
     }) as {
       addModel: (data: string, format: string) => { setStyle: (sel: Record<string, unknown>, style: Record<string, unknown>) => void };
       zoomTo: () => void;
       render: () => void;
+      resize: () => void;
       removeAllModels: () => void;
     };
-
-    viewer.removeAllModels();
 
     const modelA = viewer.addModel(textA, fileA?.format ?? 'pdb');
     modelA.setStyle({}, { cartoon: { color: '#10B981', opacity: 0.85 } });
@@ -551,7 +553,9 @@ export default function CompareTab({ structureFiles }: Props) {
               style={{
                 width: '100%',
                 height: 350,
+                position: 'relative',
                 borderRadius: 8,
+                overflow: 'hidden',
                 border: '1px solid #E2E8F0',
                 background: '#f8fafc',
               }}
