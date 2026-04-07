@@ -1,36 +1,55 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { wsGet } from '../api/workspace';
-import type { StructureFile } from '../api/outputs';
+import { listSubmissions, getSubmission } from '../api/gowe';
+import { parseOutputs, type StructureFile } from '../api/outputs';
 import { parsePdb, type ParsedPdb } from '../utils/pdbParser';
+import WorkspaceBrowser from './WorkspaceBrowser';
 
 /**
- * CompareTab — compare multiple structure prediction samples.
+ * CompareTab — compare two protein structures from any source:
+ *
+ *  1. **This job** — structure files from the current job's outputs
+ *  2. **Other job** — pick a completed job, then pick its structure file
+ *  3. **Workspace** — browse workspace for any .pdb/.cif file
  *
  * Features:
- *  - Model selector dropdowns (model A vs model B)
- *  - pLDDT overlay chart (both models on same axis)
- *  - Per-residue distance profile (client-side Cα RMSD)
- *  - Superposition viewer (both models in 3Dmol.js)
- *  - Divergent region summary
+ *  - Multi-source model selectors (A and B)
+ *  - Client-side Cα per-residue distance + RMSD
+ *  - Divergent region identification
+ *  - 3Dmol.js superposition viewer
+ *  - pLDDT overlay chart
+ *  - Per-residue divergence chart
  */
 
 interface Props {
+  /** Structure files from the current job. */
   structureFiles: StructureFile[];
+  /** Current job ID (used to exclude from cross-job list). */
+  currentJobId?: string;
 }
 
-// ── Client-side Cα alignment (Kabsch-free per-residue distance) ──
+// ── Model source types ──────────────────────────────────────
+
+type SourceType = 'job' | 'other-job' | 'workspace';
+
+interface ModelSelection {
+  source: SourceType;
+  /** Display label for the selection. */
+  label: string;
+  /** Workspace path to the structure file. */
+  wsPath: string;
+  /** PDB or CIF format. */
+  format: 'pdb' | 'cif';
+}
+
+// ── Client-side Cα alignment ────────────────────────────────
 
 interface ComparisonResult {
-  /** Per-residue Cα distance in Angstroms. */
   perResidueDistance: number[];
-  /** Overall RMSD (unaligned — same frame). */
   rmsd: number;
-  /** Number of divergent residues (distance > 3 Å). */
   nDivergent: number;
-  /** Divergent regions: contiguous stretches with distance > threshold. */
   divergentRegions: { start: number; end: number; meanDist: number; maxDist: number }[];
-  /** Number of aligned residues. */
   nAligned: number;
 }
 
@@ -54,7 +73,6 @@ function compareStructures(pdb1: ParsedPdb, pdb2: ParsedPdb, threshold = 3.0): C
 
   const rmsd = n > 0 ? Math.sqrt(sumSq / n) : 0;
 
-  // Identify divergent regions
   const divergentRegions: { start: number; end: number; meanDist: number; maxDist: number }[] = [];
   let regionStart = -1;
   for (let i = 0; i <= n; i++) {
@@ -126,11 +144,9 @@ function DivergenceChart({ distances, plddt1, plddt2, threshold = 3.0 }: {
     const plotW = width - marginL - marginR;
     const plotH = height - marginT - marginB;
 
-    // Clear
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, width, height);
 
-    // Find max distance for Y scale
     let maxD = 0;
     for (const d of distances) if (d > maxD) maxD = d;
     maxD = Math.max(maxD * 1.1, threshold * 1.5);
@@ -167,7 +183,7 @@ function DivergenceChart({ distances, plddt1, plddt2, threshold = 3.0 }: {
     }
     ctx.stroke();
 
-    // pLDDT overlays (right Y axis, scaled 0-100)
+    // pLDDT overlays
     const drawPlddt = (vals: number[], color: string) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = 0.8;
@@ -189,8 +205,7 @@ function DivergenceChart({ distances, plddt1, plddt2, threshold = 3.0 }: {
     ctx.fillStyle = '#64748B';
     ctx.font = '9px system-ui, sans-serif';
     ctx.textAlign = 'right';
-    const yTicks = [0, threshold, Math.round(maxD)];
-    for (const v of yTicks) {
+    for (const v of [0, threshold, Math.round(maxD)]) {
       const y = marginT + plotH * (1 - v / maxD);
       ctx.fillText(`${v}`, marginL - 4, y + 3);
     }
@@ -212,7 +227,6 @@ function DivergenceChart({ distances, plddt1, plddt2, threshold = 3.0 }: {
     ctx.textAlign = 'center';
     ctx.fillText('Distance (\u00C5)', 0, 0);
     ctx.restore();
-
     ctx.textAlign = 'center';
     ctx.fillText('Residue', marginL + plotW / 2, height - 14);
   }, [distances, plddt1, plddt2, threshold, width]);
@@ -220,7 +234,6 @@ function DivergenceChart({ distances, plddt1, plddt2, threshold = 3.0 }: {
   return (
     <div ref={containerRef}>
       <canvas ref={canvasRef} style={{ borderRadius: 6, border: '1px solid #E2E8F0', display: 'block', width: '100%' }} />
-      {/* Legend */}
       <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 10, color: '#94A3B8' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           <span style={{ width: 12, height: 2, background: '#1E40AF', display: 'inline-block' }} /> C&alpha; distance
@@ -291,7 +304,6 @@ function PlddtOverlayChart({ plddt1, plddt2, label1, label2 }: {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, width, height);
 
-    // Confidence bands
     const bands = [
       { min: 90, max: 100, color: 'rgba(16, 185, 129, 0.06)' },
       { min: 70, max: 90, color: 'rgba(59, 130, 246, 0.06)' },
@@ -305,7 +317,6 @@ function PlddtOverlayChart({ plddt1, plddt2, label1, label2 }: {
       ctx.fillRect(marginL, y0, plotW, y1 - y0);
     }
 
-    // Draw both lines
     const drawLine = (vals: number[], color: string, lineWidth: number) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
@@ -321,7 +332,6 @@ function PlddtOverlayChart({ plddt1, plddt2, label1, label2 }: {
     drawLine(plddt1, '#10B981', 1.5);
     drawLine(plddt2, '#F59E0B', 1.5);
 
-    // Y axis
     ctx.fillStyle = '#64748B';
     ctx.font = '9px system-ui, sans-serif';
     ctx.textAlign = 'right';
@@ -330,7 +340,6 @@ function PlddtOverlayChart({ plddt1, plddt2, label1, label2 }: {
       ctx.fillText(String(v), marginL - 4, y + 3);
     }
 
-    // X axis
     ctx.textAlign = 'center';
     const tickInterval = n <= 100 ? 10 : n <= 500 ? 50 : 100;
     for (let i = 0; i < n; i += tickInterval) {
@@ -354,10 +363,20 @@ function PlddtOverlayChart({ plddt1, plddt2, label1, label2 }: {
   );
 }
 
-// ── Main CompareTab ──────────────────────────────────────────
+// ── ModelSourceSelector ─────────────────────────────────────
 
-export default function CompareTab({ structureFiles }: Props) {
-  // Sort structure files: model_1, model_2, ... then alphabetical
+function ModelSourceSelector({ side, color, structureFiles, currentJobId, selection, onSelect }: {
+  side: 'A' | 'B';
+  color: string;
+  structureFiles: StructureFile[];
+  currentJobId?: string;
+  selection: ModelSelection | null;
+  onSelect: (sel: ModelSelection) => void;
+}) {
+  const [sourceTab, setSourceTab] = useState<SourceType>(structureFiles.length > 0 ? 'job' : 'workspace');
+  const [wsBrowseOpen, setWsBrowseOpen] = useState(false);
+
+  // --- This Job source ---
   const sorted = useMemo(() => {
     return [...structureFiles].sort((a, b) => {
       const aNum = a.name.match(/model_(\d+)/)?.[1];
@@ -369,32 +388,283 @@ export default function CompareTab({ structureFiles }: Props) {
     });
   }, [structureFiles]);
 
-  const [idxA, setIdxA] = useState(0);
-  const [idxB, setIdxB] = useState(Math.min(1, sorted.length - 1));
+  // --- Other Job source ---
+  const [otherJobSearch, setOtherJobSearch] = useState('');
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  const fileA = sorted[idxA];
-  const fileB = sorted[idxB];
-
-  // Fetch both PDB files
-  const { data: textA } = useQuery({
-    queryKey: ['ws-compare', fileA?.wsPath],
+  // Fetch completed jobs
+  const { data: completedJobs, isLoading: jobsLoading } = useQuery({
+    queryKey: ['compare-jobs'],
     queryFn: async () => {
-      if (!fileA) return null;
-      const result = await wsGet([fileA.wsPath]);
+      const res = await listSubmissions({ limit: 50, state: 'completed' });
+      // Filter out current job
+      return res.data.filter((s) => s.id !== currentJobId);
+    },
+    enabled: sourceTab === 'other-job',
+    staleTime: 30_000,
+  });
+
+  // Filter jobs by search text
+  const filteredJobs = useMemo(() => {
+    if (!completedJobs) return [];
+    if (!otherJobSearch) return completedJobs;
+    const q = otherJobSearch.toLowerCase();
+    return completedJobs.filter((s) =>
+      s.id.toLowerCase().includes(q) ||
+      (s.labels?.run_name ?? '').toLowerCase().includes(q) ||
+      s.workflow_name.toLowerCase().includes(q)
+    );
+  }, [completedJobs, otherJobSearch]);
+
+  // Fetch selected other job's outputs to find structure files
+  const { data: otherJobStructures } = useQuery({
+    queryKey: ['compare-job-structures', selectedJobId],
+    queryFn: async () => {
+      if (!selectedJobId) return [];
+      const sub = await getSubmission(selectedJobId);
+      if (!sub.outputs) return [];
+      const parsed = parseOutputs(sub.outputs);
+      return parsed.structureFiles;
+    },
+    enabled: !!selectedJobId,
+    staleTime: Infinity,
+  });
+
+  const handleJobFileSelect = useCallback((sf: StructureFile) => {
+    const jobLabel = filteredJobs.find((j) => j.id === selectedJobId);
+    const jobName = jobLabel?.labels?.run_name ?? selectedJobId?.slice(0, 8) ?? '';
+    onSelect({
+      source: 'other-job',
+      label: `${jobName} / ${sf.name}`,
+      wsPath: sf.wsPath,
+      format: sf.format,
+    });
+  }, [selectedJobId, filteredJobs, onSelect]);
+
+  // --- Workspace browse handler ---
+  const handleWsSelect = useCallback((path: string) => {
+    const name = path.split('/').pop() ?? path;
+    const ext = name.toLowerCase().split('.').pop();
+    const format: 'pdb' | 'cif' = ext === 'cif' ? 'cif' : 'pdb';
+    onSelect({
+      source: 'workspace',
+      label: name,
+      wsPath: path,
+      format,
+    });
+    setWsBrowseOpen(false);
+  }, [onSelect]);
+
+  const sourceTabs: { id: SourceType; label: string; icon: string }[] = [
+    { id: 'job', label: 'This Job', icon: '\uD83D\uDCCB' },
+    { id: 'other-job', label: 'Other Job', icon: '\uD83D\uDD17' },
+    { id: 'workspace', label: 'Workspace', icon: '\uD83D\uDCC2' },
+  ];
+
+  return (
+    <div className="card" style={{ padding: 16, borderTop: `3px solid ${color}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color }}>Model {side}</span>
+        {selection && (
+          <span style={{ fontSize: 11, color: '#64748B', fontFamily: 'monospace' }}>
+            {selection.label}
+          </span>
+        )}
+      </div>
+
+      {/* Source tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+        {sourceTabs.map((t) => (
+          <button
+            key={t.id}
+            className={`pill-sm${sourceTab === t.id ? ' active' : ''}`}
+            onClick={() => setSourceTab(t.id)}
+            style={{ fontSize: 11 }}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* This Job */}
+      {sourceTab === 'job' && (
+        <div>
+          {sorted.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#94A3B8', padding: '8px 0' }}>
+              No structure files in this job&apos;s outputs.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflow: 'auto' }}>
+              {sorted.map((sf) => (
+                <button
+                  key={sf.wsPath}
+                  onClick={() => onSelect({ source: 'job', label: sf.name, wsPath: sf.wsPath, format: sf.format })}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 10px', borderRadius: 6,
+                    border: selection?.wsPath === sf.wsPath ? `2px solid ${color}` : '1px solid #E2E8F0',
+                    background: selection?.wsPath === sf.wsPath ? `${color}10` : '#fff',
+                    cursor: 'pointer', fontSize: 12, textAlign: 'left', width: '100%',
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: '#334155' }}>{sf.name}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 10, color: '#94A3B8' }}>{sf.format.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Other Job */}
+      {sourceTab === 'other-job' && (
+        <div>
+          {!selectedJobId ? (
+            <div>
+              <input
+                className="field-input"
+                style={{ width: '100%', marginBottom: 8, fontSize: 12 }}
+                placeholder="Search jobs by name or ID..."
+                value={otherJobSearch}
+                onChange={(e) => setOtherJobSearch(e.target.value)}
+              />
+              {jobsLoading && <div style={{ fontSize: 12, color: '#94A3B8', padding: 8 }}>Loading jobs...</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 200, overflow: 'auto' }}>
+                {filteredJobs.map((job) => (
+                  <button
+                    key={job.id}
+                    onClick={() => setSelectedJobId(job.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 10px', borderRadius: 6,
+                      border: '1px solid #E2E8F0', background: '#fff',
+                      cursor: 'pointer', fontSize: 12, textAlign: 'left', width: '100%',
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: '#334155' }}>
+                      {job.labels?.run_name ?? job.id.slice(0, 12)}
+                    </span>
+                    <span style={{ fontSize: 10, color: '#94A3B8' }}>{job.workflow_name}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 10, color: '#94A3B8' }}>
+                      {new Date(job.created_at).toLocaleDateString()}
+                    </span>
+                  </button>
+                ))}
+                {!jobsLoading && filteredJobs.length === 0 && (
+                  <div style={{ fontSize: 12, color: '#94A3B8', padding: 8 }}>
+                    {otherJobSearch ? 'No matching jobs found.' : 'No completed jobs found.'}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <button
+                  onClick={() => setSelectedJobId(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3B82F6', fontSize: 12 }}
+                >
+                  &larr; Back to jobs
+                </button>
+                <span style={{ fontSize: 11, color: '#64748B' }}>
+                  {completedJobs?.find((j) => j.id === selectedJobId)?.labels?.run_name ?? selectedJobId.slice(0, 12)}
+                </span>
+              </div>
+              {!otherJobStructures ? (
+                <div style={{ fontSize: 12, color: '#94A3B8', padding: 8 }}>Loading structure files...</div>
+              ) : otherJobStructures.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#94A3B8', padding: 8 }}>No structure files found in this job.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflow: 'auto' }}>
+                  {otherJobStructures.map((sf) => (
+                    <button
+                      key={sf.wsPath}
+                      onClick={() => handleJobFileSelect(sf)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 10px', borderRadius: 6,
+                        border: selection?.wsPath === sf.wsPath ? `2px solid ${color}` : '1px solid #E2E8F0',
+                        background: selection?.wsPath === sf.wsPath ? `${color}10` : '#fff',
+                        cursor: 'pointer', fontSize: 12, textAlign: 'left', width: '100%',
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: '#334155' }}>{sf.name}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: '#94A3B8' }}>{sf.format.toUpperCase()}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Workspace browse */}
+      {sourceTab === 'workspace' && (
+        <div>
+          <button
+            className="btn-outline"
+            style={{ fontSize: 12 }}
+            onClick={() => setWsBrowseOpen(true)}
+          >
+            Browse Workspace for .pdb / .cif
+          </button>
+          {selection?.source === 'workspace' && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#64748B', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              {selection.wsPath}
+            </div>
+          )}
+          <WorkspaceBrowser
+            open={wsBrowseOpen}
+            mode="file"
+            onSelect={handleWsSelect}
+            onClose={() => setWsBrowseOpen(false)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main CompareTab ──────────────────────────────────────────
+
+export default function CompareTab({ structureFiles, currentJobId }: Props) {
+  // Default selections: first two structure files from this job, if available
+  const defaultA: ModelSelection | null = useMemo(() => {
+    const first = structureFiles[0];
+    if (!first) return null;
+    return { source: 'job', label: first.name, wsPath: first.wsPath, format: first.format };
+  }, [structureFiles]);
+
+  const defaultB: ModelSelection | null = useMemo(() => {
+    const second = structureFiles[1];
+    if (!second) return null;
+    return { source: 'job', label: second.name, wsPath: second.wsPath, format: second.format };
+  }, [structureFiles]);
+
+  const [selA, setSelA] = useState<ModelSelection | null>(defaultA);
+  const [selB, setSelB] = useState<ModelSelection | null>(defaultB);
+
+  // Fetch structure file contents
+  const { data: textA } = useQuery({
+    queryKey: ['ws-compare', selA?.wsPath],
+    queryFn: async () => {
+      if (!selA) return null;
+      const result = await wsGet([selA.wsPath]);
       return result[0]?.[1] as string | null;
     },
-    enabled: !!fileA,
+    enabled: !!selA,
     staleTime: Infinity,
   });
 
   const { data: textB } = useQuery({
-    queryKey: ['ws-compare', fileB?.wsPath],
+    queryKey: ['ws-compare', selB?.wsPath],
     queryFn: async () => {
-      if (!fileB) return null;
-      const result = await wsGet([fileB.wsPath]);
+      if (!selB) return null;
+      const result = await wsGet([selB.wsPath]);
       return result[0]?.[1] as string | null;
     },
-    enabled: !!fileB,
+    enabled: !!selB,
     staleTime: Infinity,
   });
 
@@ -408,19 +678,19 @@ export default function CompareTab({ structureFiles }: Props) {
     return compareStructures(pdbA, pdbB);
   }, [pdbA, pdbB]);
 
-  // Mean pLDDT for each
+  // Mean pLDDT
   const meanPlddtA = useMemo(() => {
-    if (!pdbA) return null;
+    if (!pdbA || pdbA.bFactors.length === 0) return null;
     let sum = 0;
     for (const b of pdbA.bFactors) sum += b;
-    return sum / (pdbA.bFactors.length || 1);
+    return sum / pdbA.bFactors.length;
   }, [pdbA]);
 
   const meanPlddtB = useMemo(() => {
-    if (!pdbB) return null;
+    if (!pdbB || pdbB.bFactors.length === 0) return null;
     let sum = 0;
     for (const b of pdbB.bFactors) sum += b;
-    return sum / (pdbB.bFactors.length || 1);
+    return sum / pdbB.bFactors.length;
   }, [pdbB]);
 
   // 3Dmol superposition viewer
@@ -434,7 +704,6 @@ export default function CompareTab({ structureFiles }: Props) {
     } | undefined;
     if (!$3Dmol) return;
 
-    // Clear any previous viewer canvas (3Dmol appends a canvas each time)
     viewerRef.current.innerHTML = '';
 
     const viewer = $3Dmol.createViewer(viewerRef.current, {
@@ -447,10 +716,12 @@ export default function CompareTab({ structureFiles }: Props) {
       removeAllModels: () => void;
     };
 
-    const modelA = viewer.addModel(textA, fileA?.format ?? 'pdb');
+    const fmtA = selA?.format === 'cif' ? 'mmcif' : (selA?.format ?? 'pdb');
+    const modelA = viewer.addModel(textA, fmtA);
     modelA.setStyle({}, { cartoon: { color: '#10B981', opacity: 0.85 } });
 
-    const modelB = viewer.addModel(textB, fileB?.format ?? 'pdb');
+    const fmtB = selB?.format === 'cif' ? 'mmcif' : (selB?.format ?? 'pdb');
+    const modelB = viewer.addModel(textB, fmtB);
     modelB.setStyle({}, { cartoon: { color: '#F59E0B', opacity: 0.85 } });
 
     viewer.zoomTo();
@@ -459,55 +730,46 @@ export default function CompareTab({ structureFiles }: Props) {
     return () => {
       viewer.removeAllModels();
     };
-  }, [textA, textB, fileA?.format, fileB?.format]);
+  }, [textA, textB, selA?.format, selB?.format]);
 
-  if (sorted.length < 2) {
-    return (
-      <div className="card" style={{ padding: 48, textAlign: 'center', color: '#94A3B8' }}>
-        <div style={{ fontSize: 18, marginBottom: 8 }}>Single model</div>
-        <div style={{ fontSize: 13 }}>
-          Comparison requires at least 2 structure files (e.g., multiple samples with <code>num_samples &gt; 1</code>).
-          This job produced {sorted.length} structure file{sorted.length !== 1 ? 's' : ''}.
-        </div>
-      </div>
-    );
-  }
+  const bothSelected = selA && selB;
+  const bothLoaded = textA && textB;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Model selector */}
-      <div className="card" style={{ padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <label className="field-label" style={{ marginBottom: 4 }}>Model A</label>
-            <select
-              className="field-input"
-              style={{ minWidth: 200, borderColor: '#10B981' }}
-              value={idxA}
-              onChange={(e) => setIdxA(Number(e.target.value))}
-            >
-              {sorted.map((f, i) => (
-                <option key={f.wsPath} value={i}>{f.name}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ fontSize: 18, color: '#94A3B8', paddingTop: 20 }}>vs</div>
-          <div>
-            <label className="field-label" style={{ marginBottom: 4 }}>Model B</label>
-            <select
-              className="field-input"
-              style={{ minWidth: 200, borderColor: '#F59E0B' }}
-              value={idxB}
-              onChange={(e) => setIdxB(Number(e.target.value))}
-            >
-              {sorted.map((f, i) => (
-                <option key={f.wsPath} value={i}>{f.name}</option>
-              ))}
-            </select>
-          </div>
+      {/* Model selectors side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <ModelSourceSelector
+          side="A"
+          color="#10B981"
+          structureFiles={structureFiles}
+          currentJobId={currentJobId}
+          selection={selA}
+          onSelect={setSelA}
+        />
+        <ModelSourceSelector
+          side="B"
+          color="#F59E0B"
+          structureFiles={structureFiles}
+          currentJobId={currentJobId}
+          selection={selB}
+          onSelect={setSelB}
+        />
+      </div>
 
-          {/* Quick metrics */}
-          {comparison && (
+      {/* Quick metrics bar */}
+      {comparison && (
+        <div className="card" style={{ padding: '12px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 12, height: 3, background: '#10B981', borderRadius: 1, display: 'inline-block' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{selA?.label}</span>
+            </div>
+            <span style={{ fontSize: 14, color: '#94A3B8' }}>vs</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 12, height: 3, background: '#F59E0B', borderRadius: 1, display: 'inline-block' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{selB?.label}</span>
+            </div>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 20 }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 10, color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>RMSD</div>
@@ -529,19 +791,30 @@ export default function CompareTab({ structureFiles }: Props) {
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Loading state */}
-      {(!textA || !textB) && (
+      {/* Prompt to select both models */}
+      {!bothSelected && (
+        <div className="card" style={{ padding: 48, textAlign: 'center', color: '#94A3B8' }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>{'\u2194\uFE0F'}</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Select two structures to compare</div>
+          <div style={{ fontSize: 12 }}>
+            Choose models from this job, another completed job, or browse your workspace for any .pdb / .cif file.
+          </div>
+        </div>
+      )}
+
+      {/* Loading */}
+      {bothSelected && !bothLoaded && (
         <div className="card" style={{ padding: 48, textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
           Loading structures from workspace...
         </div>
       )}
 
       {/* Superposition viewer + metrics */}
-      {textA && textB && (
+      {bothLoaded && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           {/* 3D superposition */}
           <div className="card" style={{ padding: 24 }}>
@@ -562,10 +835,10 @@ export default function CompareTab({ structureFiles }: Props) {
             />
             <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 10, color: '#94A3B8' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 12, height: 3, background: '#10B981', borderRadius: 1, display: 'inline-block' }} /> {fileA?.name}
+                <span style={{ width: 12, height: 3, background: '#10B981', borderRadius: 1, display: 'inline-block' }} /> {selA?.label}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 12, height: 3, background: '#F59E0B', borderRadius: 1, display: 'inline-block' }} /> {fileB?.name}
+                <span style={{ width: 12, height: 3, background: '#F59E0B', borderRadius: 1, display: 'inline-block' }} /> {selB?.label}
               </span>
             </div>
           </div>
@@ -578,7 +851,6 @@ export default function CompareTab({ structureFiles }: Props) {
 
             {comparison && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Metrics grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <MetricBox label="C&alpha; RMSD" value={`${comparison.rmsd.toFixed(2)} \u00C5`}
                     color={comparison.rmsd < 1 ? '#10B981' : comparison.rmsd < 3 ? '#F59E0B' : '#EF4444'} />
@@ -586,11 +858,10 @@ export default function CompareTab({ structureFiles }: Props) {
                   <MetricBox label="Divergent Residues" value={`${comparison.nDivergent} (${comparison.nAligned > 0 ? ((comparison.nDivergent / comparison.nAligned) * 100).toFixed(1) : 0}%)`}
                     color={comparison.nDivergent === 0 ? '#10B981' : '#EF4444'} />
                   <MetricBox label="Divergent Regions" value={String(comparison.divergentRegions.length)} />
-                  {meanPlddtA != null && <MetricBox label={`Mean pLDDT (${fileA?.name})`} value={meanPlddtA.toFixed(1)} color="#10B981" />}
-                  {meanPlddtB != null && <MetricBox label={`Mean pLDDT (${fileB?.name})`} value={meanPlddtB.toFixed(1)} color="#F59E0B" />}
+                  {meanPlddtA != null && <MetricBox label={`Mean pLDDT (A)`} value={meanPlddtA.toFixed(1)} color="#10B981" />}
+                  {meanPlddtB != null && <MetricBox label={`Mean pLDDT (B)`} value={meanPlddtB.toFixed(1)} color="#F59E0B" />}
                 </div>
 
-                {/* Divergent regions table */}
                 {comparison.divergentRegions.length > 0 && (
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#64748B', marginBottom: 6 }}>Divergent Regions (&gt; 3 &Aring;)</div>
@@ -655,8 +926,8 @@ export default function CompareTab({ structureFiles }: Props) {
           <PlddtOverlayChart
             plddt1={pdbA.bFactors}
             plddt2={pdbB.bFactors}
-            label1={fileA?.name ?? 'Model A'}
-            label2={fileB?.name ?? 'Model B'}
+            label1={selA?.label ?? 'Model A'}
+            label2={selB?.label ?? 'Model B'}
           />
         </div>
       )}

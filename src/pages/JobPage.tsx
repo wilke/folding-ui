@@ -105,12 +105,9 @@ export default function JobPage() {
   const stateLC = submission.state.toLowerCase();
   const isComplete = stateLC === 'success' || stateLC === 'completed';
 
-  // Show Results tab only for completed jobs with outputs
-  const hasMultipleModels = (parsed?.structureFiles.length ?? 0) >= 2;
+  // Show Results + Compare tabs for completed jobs with outputs
   const tabs: TabId[] = isComplete && parsed
-    ? hasMultipleModels
-      ? ['overview', 'results', 'compare', 'report', 'tasks', 'files']
-      : ['overview', 'results', 'report', 'tasks', 'files']
+    ? ['overview', 'results', 'compare', 'report', 'tasks', 'files']
     : ['overview', 'report', 'tasks', 'files'];
 
   const tabLabels: Record<TabId, string> = {
@@ -167,7 +164,7 @@ export default function JobPage() {
 
       {activeTab === 'overview' && <OverviewTab submission={submission} />}
       {activeTab === 'results' && parsed && <ResultsTab parsed={parsed} />}
-      {activeTab === 'compare' && parsed && <CompareTab structureFiles={parsed.structureFiles} />}
+      {activeTab === 'compare' && parsed && <CompareTab structureFiles={parsed.structureFiles} currentJobId={id} />}
       {activeTab === 'report' && <ReportTab parsed={parsed} isComplete={isComplete} />}
       {activeTab === 'tasks' && <TasksTab tasks={tasks ?? []} submissionId={id!} />}
       {activeTab === 'files' && <FilesTab parsed={parsed} isComplete={isComplete} />}
