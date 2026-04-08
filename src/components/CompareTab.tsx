@@ -392,16 +392,12 @@ function ModelSourceSelector({ side, color, structureFiles, currentJobId, select
   const [otherJobSearch, setOtherJobSearch] = useState('');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  // Fetch succeeded/completed jobs only
+  // Fetch completed jobs only (GoWe API returns state "COMPLETED" for finished submissions)
   const { data: completedJobs, isLoading: jobsLoading } = useQuery({
     queryKey: ['compare-jobs'],
     queryFn: async () => {
-      const res = await listSubmissions({ limit: 100 });
-      // Only show succeeded/completed jobs, exclude current job
-      return res.data.filter((s) => {
-        const st = s.state.toLowerCase();
-        return (st === 'success' || st === 'completed') && s.id !== currentJobId;
-      });
+      const res = await listSubmissions({ limit: 100, state: 'completed' });
+      return res.data.filter((s) => s.id !== currentJobId);
     },
     enabled: sourceTab === 'other-job',
     staleTime: 30_000,
