@@ -10,7 +10,7 @@ import PlddtChart from '../components/PlddtChart';
 import PAEHeatmap from '../components/PAEHeatmap';
 import ContactMapCanvas from '../components/ContactMapCanvas';
 import SSSequenceBar from '../components/SSSequenceBar';
-import { parsePdb } from '../utils/pdbParser';
+import { parseStructure } from '../utils/pdbParser';
 import CompareTab from '../components/CompareTab';
 import { useState, useMemo, useEffect, Fragment } from 'react';
 
@@ -329,10 +329,10 @@ function ResultsTab({ parsed }: { parsed: ParsedOutputs }) {
     return null;
   }, [analysis, confidence]);
 
-  // Parse PDB for client-side analysis (C-alpha coords for contact map)
+  // Parse structure for client-side analysis (C-alpha coords for contact map)
   const parsedPdb = useMemo(() => {
-    if (!structureData || parsed.structureFormat !== 'pdb') return null;
-    return parsePdb(structureData);
+    if (!structureData) return null;
+    return parseStructure(structureData, parsed.structureFormat);
   }, [structureData, parsed.structureFormat]);
 
   // Extract PAE matrix from analysis.json

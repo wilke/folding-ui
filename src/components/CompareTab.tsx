@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { wsGet } from '../api/workspace';
 import { listSubmissions, getSubmission } from '../api/gowe';
 import { parseOutputs, type StructureFile } from '../api/outputs';
-import { parsePdb, type ParsedPdb } from '../utils/pdbParser';
+import { parseStructure, type ParsedPdb } from '../utils/pdbParser';
 import WorkspaceBrowser from './WorkspaceBrowser';
 
 /**
@@ -392,13 +392,16 @@ function ModelSourceSelector({ side, color, structureFiles, currentJobId, select
   const [otherJobSearch, setOtherJobSearch] = useState('');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  // Fetch completed jobs
+  // Fetch succeeded/completed jobs only
   const { data: completedJobs, isLoading: jobsLoading } = useQuery({
     queryKey: ['compare-jobs'],
     queryFn: async () => {
-      const res = await listSubmissions({ limit: 50, state: 'completed' });
-      // Filter out current job
-      return res.data.filter((s) => s.id !== currentJobId);
+      const res = await listSubmissions({ limit: 100 });
+      // Only show succeeded/completed jobs, exclude current job
+      return res.data.filter((s) => {
+        const st = s.state.toLowerCase();
+        return (st === 'success' || st === 'completed') && s.id !== currentJobId;
+      });
     },
     enabled: sourceTab === 'other-job',
     staleTime: 30_000,
@@ -668,9 +671,9 @@ export default function CompareTab({ structureFiles, currentJobId }: Props) {
     staleTime: Infinity,
   });
 
-  // Parse PDBs
-  const pdbA = useMemo(() => textA ? parsePdb(textA) : null, [textA]);
-  const pdbB = useMemo(() => textB ? parsePdb(textB) : null, [textB]);
+  // Parse structures (format-aware: PDB or CIF)
+  const pdbA = useMemo(() => textA ? parseStructure(textA, selA?.format) : null, [textA, selA?.format]);
+  const pdbB = useMemo(() => textB ? parseStructure(textB, selB?.format) : null, [textB, selB?.format]);
 
   // Compare
   const comparison = useMemo(() => {
@@ -858,9 +861,31 @@ export default function CompareTab({ structureFiles, currentJobId }: Props) {
                   <MetricBox label="Divergent Residues" value={`${comparison.nDivergent} (${comparison.nAligned > 0 ? ((comparison.nDivergent / comparison.nAligned) * 100).toFixed(1) : 0}%)`}
                     color={comparison.nDivergent === 0 ? '#10B981' : '#EF4444'} />
                   <MetricBox label="Divergent Regions" value={String(comparison.divergentRegions.length)} />
-                  {meanPlddtA != null && <MetricBox label={`Mean pLDDT (A)`} value={meanPlddtA.toFixed(1)} color="#10B981" />}
-                  {meanPlddtB != null && <MetricBox label={`Mean pLDDT (B)`} value={meanPlddtB.toFixed(1)} color="#F59E0B" />}
                 </div>
+
+                {/* pLDDT: combined A/B + ratio */}
+                {meanPlddtA != null && meanPlddtB != null && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Mean pLDDT (A / B)</div>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>
+                        <span style={{ color: '#10B981' }}>{meanPlddtA.toFixed(1)}</span>
+                        <span style={{ color: '#94A3B8', fontWeight: 400 }}> / </span>
+                        <span style={{ color: '#F59E0B' }}>{meanPlddtB.toFixed(1)}</span>
+                      </div>
+                    </div>
+                    <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>pLDDT Ratio (A : B)</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#334155' }}>
+                        {meanPlddtB > meanPlddtA
+                          ? `1 : ${(meanPlddtB / meanPlddtA).toFixed(2)}`
+                          : meanPlddtA > meanPlddtB
+                            ? `${(meanPlddtA / meanPlddtB).toFixed(2)} : 1`
+                            : '1 : 1'}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {comparison.divergentRegions.length > 0 && (
                   <div>
