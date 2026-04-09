@@ -42,7 +42,13 @@ async function rpcCall<T>(method: string, params: Record<string, unknown>): Prom
   // JSON-RPC 1.1 wraps the result in an array: result: [data]
   const result = body.result;
   if (Array.isArray(result)) {
+    if (result.length === 0) {
+      throw new Error(`Workspace RPC ${method}: empty result array`);
+    }
     return result[0] as T;
+  }
+  if (result == null) {
+    throw new Error(`Workspace RPC ${method}: null/undefined result`);
   }
   return result;
 }
@@ -125,6 +131,9 @@ export async function wsCreateFolder(path: string): Promise<WsObject> {
   const result = await rpcCall<ObjectMeta[]>('Workspace.create', {
     objects: [[path, 'folder', {}, '']],
   });
+  if (!result || !Array.isArray(result) || result.length === 0) {
+    throw new Error(`Workspace.create returned no objects for ${path}`);
+  }
   return parseObjectMeta(result[0]!);
 }
 
