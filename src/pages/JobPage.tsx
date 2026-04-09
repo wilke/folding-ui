@@ -7,9 +7,14 @@ import { useSubmissionSSE } from '../hooks/useSSE';
 import JobStatusBadge from '../components/JobStatusBadge';
 import StructureViewer from '../components/StructureViewer';
 import PlddtChart from '../components/PlddtChart';
+import PAEHeatmap from '../components/PAEHeatmap';
+import ContactMapCanvas from '../components/ContactMapCanvas';
+import SSSequenceBar from '../components/SSSequenceBar';
+import { parseStructure } from '../utils/pdbParser';
+import CompareTab from '../components/CompareTab';
 import { useState, useMemo, useEffect, Fragment } from 'react';
 
-type TabId = 'overview' | 'results' | 'report' | 'tasks' | 'files';
+type TabId = 'overview' | 'results' | 'compare' | 'report' | 'tasks' | 'files';
 
 export default function JobPage() {
   const { id } = useParams<{ id: string }>();
@@ -100,14 +105,15 @@ export default function JobPage() {
   const stateLC = submission.state.toLowerCase();
   const isComplete = stateLC === 'success' || stateLC === 'completed';
 
-  // Show Results tab only for completed jobs with outputs
+  // Show Results + Compare tabs for completed jobs with outputs
   const tabs: TabId[] = isComplete && parsed
-    ? ['overview', 'results', 'report', 'tasks', 'files']
+    ? ['overview', 'results', 'compare', 'report', 'tasks', 'files']
     : ['overview', 'report', 'tasks', 'files'];
 
   const tabLabels: Record<TabId, string> = {
     overview: 'Overview',
     results: 'Results',
+    compare: 'Compare',
     report: 'Report',
     tasks: 'Tasks',
     files: 'Files',
@@ -158,6 +164,7 @@ export default function JobPage() {
 
       {activeTab === 'overview' && <OverviewTab submission={submission} />}
       {activeTab === 'results' && parsed && <ResultsTab parsed={parsed} />}
+      {activeTab === 'compare' && parsed && <CompareTab structureFiles={parsed.structureFiles} currentJobId={id} />}
       {activeTab === 'report' && <ReportTab parsed={parsed} isComplete={isComplete} />}
       {activeTab === 'tasks' && <TasksTab tasks={tasks ?? []} submissionId={id!} />}
       {activeTab === 'files' && <FilesTab parsed={parsed} isComplete={isComplete} />}
@@ -322,6 +329,36 @@ function ResultsTab({ parsed }: { parsed: ParsedOutputs }) {
     return null;
   }, [analysis, confidence]);
 
+  // Parse structure for client-side analysis (C-alpha coords for contact map)
+  const parsedPdb = useMemo(() => {
+    if (!structureData) return null;
+    return parseStructure(structureData, parsed.structureFormat);
+  }, [structureData, parsed.structureFormat]);
+
+  // Extract PAE matrix from analysis.json
+  const paeMatrix = useMemo(() => {
+    const pae = analysis?.pae as Record<string, unknown> | undefined;
+    if (!pae) return null;
+    const m = pae.pae_matrix;
+    if (Array.isArray(m) && m.length > 0 && Array.isArray(m[0])) return m as number[][];
+    return null;
+  }, [analysis]);
+
+  const paeDomains = useMemo(() => {
+    const pae = analysis?.pae as Record<string, unknown> | undefined;
+    if (!pae?.domains) return undefined;
+    const d = pae.domains;
+    if (Array.isArray(d) && d.length > 0) return d as number[][];
+    return undefined;
+  }, [analysis]);
+
+  // Extract SS sequence from analysis.json
+  const ssSequence = useMemo(() => {
+    const ss = analysis?.secondary_structure as Record<string, unknown> | undefined;
+    if (!ss?.ss_sequence) return undefined;
+    return ss.ss_sequence as string;
+  }, [analysis]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Summary Metrics Grid (from analysis.json) */}
@@ -385,8 +422,22 @@ function ResultsTab({ parsed }: { parsed: ParsedOutputs }) {
         </div>
       </div>
 
-      {/* Secondary Structure & Contacts (from analysis.json) */}
-      {analysis && (analysis.secondary_structure || analysis.contacts) && (
+      {/* Secondary Structure Bar (interactive) */}
+      {ssSequence && (
+        <div className="card" style={{ padding: 24 }}>
+          <SectionTitle label="Secondary Structure" tip={GLOSSARY['Secondary Structure']} />
+          <SSSequenceBar ssSequence={ssSequence} plddt={plddtValues ?? undefined} />
+          {/* Fraction summary below the bar */}
+          {analysis?.secondary_structure && (
+            <div style={{ marginTop: 12 }}>
+              <SSDisplay ss={analysis.secondary_structure} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Contacts summary — only if no SS bar above already showed SS */}
+      {!ssSequence && analysis && (analysis.secondary_structure || analysis.contacts) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
           {analysis.secondary_structure && (
             <div className="card" style={{ padding: 24, minWidth: 0 }}>
@@ -400,6 +451,35 @@ function ResultsTab({ parsed }: { parsed: ParsedOutputs }) {
               <ContactsDisplay contacts={analysis.contacts} />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Interactive PAE Heatmap & Contact Map side by side */}
+      {(paeMatrix || parsedPdb) && (
+        <div style={{ display: 'grid', gridTemplateColumns: paeMatrix && parsedPdb ? '1fr 1fr' : '1fr', gap: 16 }}>
+          {paeMatrix && (
+            <div className="card" style={{ padding: 24, minWidth: 0 }}>
+              <SectionTitle label="PAE Matrix" tip={GLOSSARY.PAE ?? 'Predicted Aligned Error — estimated distance error (in Angstroms) between every pair of residues. Low values (blue) indicate high confidence in relative positioning.'} />
+              <PAEHeatmap matrix={paeMatrix} domains={paeDomains} />
+            </div>
+          )}
+          {parsedPdb && parsedPdb.nResidues > 0 && (
+            <div className="card" style={{ padding: 24, minWidth: 0 }}>
+              <SectionTitle label="Contact Map" tip={GLOSSARY['Contact Map']} />
+              <ContactMapCanvas
+                caCoords={parsedPdb.caCoords}
+                ssSequence={ssSequence}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Contacts statistics (when we have contact map but also want the text summary) */}
+      {ssSequence && analysis?.contacts && (
+        <div className="card" style={{ padding: 24 }}>
+          <SectionTitle label="Contact Statistics" tip={GLOSSARY['Contact Map']} />
+          <ContactsDisplay contacts={analysis.contacts} />
         </div>
       )}
 

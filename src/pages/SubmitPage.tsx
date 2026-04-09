@@ -15,6 +15,7 @@ import { submitJob } from '../api/gowe';
 import { wsUploadFile, wsEnsureFolder } from '../api/workspace';
 import { useAuth } from '../hooks/useAuth';
 import { useSettings, UNIFIED_WORKFLOW, TOOL_WORKFLOWS } from '../hooks/useSettings';
+import { detectSequenceType } from '../utils/sequenceType';
 
 type SubmitView = 'wizard' | 'advanced';
 type BoltzMode = 'simple' | 'yaml';
@@ -194,17 +195,23 @@ export default function SubmitPage() {
     if (isUnified) {
       workflowId = UNIFIED_WORKFLOW;
 
-      const proteinRefs: Record<string, unknown>[] = [];
-      if (sequence.trim()) {
-        if (sequence.startsWith('workspace://')) {
-          proteinRefs.push(wsFileRef(sequence.replace('workspace://', '')));
-        } else {
-          proteinRefs.push(previewFileRef(`will upload to ws://${inputFolder}protein.fasta`, 'protein.fasta', sequence.length));
-        }
-      }
+      // Detect sequence type and route to correct CWL input
+      const seqType = sequence.trim() ? detectSequenceType(sequence) : 'protein';
+      const seqFileName = seqType === 'dna' ? 'dna.fasta' : seqType === 'rna' ? 'rna.fasta' : 'protein.fasta';
 
+      const proteinRefs: Record<string, unknown>[] = [];
       const dnaRefs = entities.dnas.map((e) => previewResolveEntry(e, inputFolder));
       const rnaRefs = entities.rnas.map((e) => previewResolveEntry(e, inputFolder));
+
+      if (sequence.trim()) {
+        const ref = sequence.startsWith('workspace://')
+          ? wsFileRef(sequence.replace('workspace://', ''))
+          : previewFileRef(`will upload to ws://${inputFolder}${seqFileName}`, seqFileName, sequence.length);
+
+        if (seqType === 'dna') dnaRefs.push(ref);
+        else if (seqType === 'rna') rnaRefs.push(ref);
+        else proteinRefs.push(ref);
+      }
 
       let msaRef: Record<string, unknown> | undefined;
       if (msaValue.trim()) {
@@ -293,15 +300,11 @@ export default function SubmitPage() {
       if (isUnified) {
         workflowId = UNIFIED_WORKFLOW;
 
-        // Resolve primary protein sequence to CWL File reference
+        // Detect sequence type and route to correct CWL input
+        const seqType = sequence.trim() ? detectSequenceType(sequence) : 'protein';
+        const seqFileName = seqType === 'dna' ? 'dna.fasta' : seqType === 'rna' ? 'rna.fasta' : 'protein.fasta';
+
         const proteinRefs: Record<string, unknown>[] = [];
-        if (sequence.trim()) {
-          if (sequence.startsWith('workspace://')) {
-            proteinRefs.push(wsFileRef(sequence.replace('workspace://', '')));
-          } else {
-            proteinRefs.push(await uploadToWs(inputFolder, 'protein.fasta', sequence));
-          }
-        }
 
         // Resolve DNA entries
         const dnaRefs: Record<string, unknown>[] = [];
@@ -313,6 +316,20 @@ export default function SubmitPage() {
         const rnaRefs: Record<string, unknown>[] = [];
         for (const entry of entities.rnas) {
           rnaRefs.push(await resolveFileEntry(entry, inputFolder));
+        }
+
+        // Route primary sequence to detected type
+        if (sequence.trim()) {
+          let ref: Record<string, unknown>;
+          if (sequence.startsWith('workspace://')) {
+            ref = wsFileRef(sequence.replace('workspace://', ''));
+          } else {
+            ref = await uploadToWs(inputFolder, seqFileName, sequence);
+          }
+
+          if (seqType === 'dna') dnaRefs.push(ref);
+          else if (seqType === 'rna') rnaRefs.push(ref);
+          else proteinRefs.push(ref);
         }
 
         // Resolve MSA value if set
