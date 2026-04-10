@@ -359,8 +359,27 @@ function ResultsTab({ parsed }: { parsed: ParsedOutputs }) {
     return ss.ss_sequence as string;
   }, [analysis]);
 
+  // Molecule type from analysis.json
+  const moleculeType = useMemo(() => {
+    const comp = analysis?.sequence_composition as Record<string, unknown> | undefined;
+    return (comp?.molecule_type as string | undefined) ?? null;
+  }, [analysis]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Molecule type badge */}
+      {moleculeType && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className={`badge ${moleculeType === 'dna' ? 'b-blue' : moleculeType === 'rna' ? 'b-purple' : 'b-green'}`}
+            style={{ fontSize: 12, padding: '4px 12px' }}>
+            {moleculeType.toUpperCase()}
+          </span>
+          <span style={{ fontSize: 13, color: '#64748B' }}>
+            {moleculeType === 'dna' ? 'DNA structure prediction' : moleculeType === 'rna' ? 'RNA structure prediction' : 'Protein structure prediction'}
+          </span>
+        </div>
+      )}
+
       {/* Summary Metrics Grid (from analysis.json) */}
       {analysis && <AnalysisMetrics analysis={analysis} />}
 
