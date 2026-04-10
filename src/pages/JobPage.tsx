@@ -486,7 +486,10 @@ function ResultsTab({ parsed }: { parsed: ParsedOutputs }) {
       {/* Sequence Composition (from analysis.json) */}
       {analysis?.sequence_composition && (
         <div className="card" style={{ padding: 24 }}>
-          <SectionTitle label="Sequence Composition" tip="Distribution of amino acid types (hydrophobic, polar, charged, special) and molecular weight of the protein." />
+          <SectionTitle
+            label="Sequence Composition"
+            tip="Distribution of residue types and molecular properties."
+          />
           <SequenceCompositionDisplay comp={analysis.sequence_composition} />
         </div>
       )}
@@ -677,9 +680,17 @@ function SequenceCompositionDisplay({ comp }: { comp: Record<string, unknown> })
   const typeFractions = comp.type_fractions as Record<string, number> | undefined;
   const typeCounts = comp.type_counts as Record<string, number> | undefined;
   const length = comp.length as number;
-  const mw = comp.molecular_weight as number;
+  const mw = comp.molecular_weight as number | undefined;
+  const molType = (comp.molecule_type as string | undefined) ?? 'protein';
+  const isDna = molType === 'dna';
+  const isRna = molType === 'rna';
+  const isNucleotide = isDna || isRna;
 
-  const typeColors: Record<string, string> = {
+  // Residue-level counts (renamed from aa_counts/aa_fractions → residue_counts/residue_fractions)
+  const residueCounts = (comp.residue_counts ?? comp.aa_counts) as Record<string, number> | undefined;
+  const residueFractions = (comp.residue_fractions ?? comp.aa_fractions) as Record<string, number> | undefined;
+
+  const proteinTypeColors: Record<string, string> = {
     hydrophobic: '#3B82F6',
     polar: '#10B981',
     positive: '#EF4444',
@@ -687,16 +698,44 @@ function SequenceCompositionDisplay({ comp }: { comp: Record<string, unknown> })
     special: '#8B5CF6',
   };
 
+  const nucleotideTypeColors: Record<string, string> = {
+    purine: '#3B82F6',
+    pyrimidine: '#F59E0B',
+  };
+
+  const typeColors = isNucleotide ? nucleotideTypeColors : proteinTypeColors;
+
+  // Residue color palette for per-base/per-AA display
+  const nucleotideResColors: Record<string, string> = {
+    A: '#10B981', T: '#3B82F6', G: '#F59E0B', C: '#EF4444', U: '#8B5CF6',
+  };
+  const proteinResColors: Record<string, string> = {
+    A: '#3B82F6', R: '#EF4444', N: '#10B981', D: '#F59E0B', C: '#8B5CF6',
+    E: '#F59E0B', Q: '#10B981', G: '#94A3B8', H: '#3B82F6', I: '#3B82F6',
+    L: '#3B82F6', K: '#EF4444', M: '#3B82F6', F: '#3B82F6', P: '#8B5CF6',
+    S: '#10B981', T: '#10B981', W: '#3B82F6', Y: '#3B82F6', V: '#3B82F6',
+  };
+  const resColors = isNucleotide ? nucleotideResColors : proteinResColors;
+
+  const unitLabel = isNucleotide ? 'bases' : 'residues';
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13, color: '#334155' }}>
-        <span><strong>{length}</strong> residues</span>
-        <span><strong>{(mw / 1000).toFixed(1)}</strong> kDa</span>
+      {/* Header stats */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13, color: '#334155', flexWrap: 'wrap', alignItems: 'center' }}>
+        {isNucleotide && (
+          <span className={`badge ${isDna ? 'b-blue' : 'b-purple'}`} style={{ fontSize: 10 }}>
+            {molType.toUpperCase()}
+          </span>
+        )}
+        <span><strong>{length}</strong> {unitLabel}</span>
+        {mw != null && mw > 0 && <span><strong>{(mw / 1000).toFixed(1)}</strong> kDa</span>}
         {Array.isArray(comp.chains) && <span><strong>{comp.chains.length}</strong> chain(s)</span>}
       </div>
+
+      {/* Type distribution bar (hydrophobic/polar/... or purine/pyrimidine) */}
       {typeFractions && typeCounts && (
         <>
-          {/* Stacked bar */}
           <div style={{ display: 'flex', height: 20, borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
             {Object.entries(typeFractions).map(([type, frac]) => (
               <div
@@ -710,8 +749,7 @@ function SequenceCompositionDisplay({ comp }: { comp: Record<string, unknown> })
               />
             ))}
           </div>
-          {/* Legend */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11, marginBottom: 12 }}>
             {Object.entries(typeFractions).map(([type, frac]) => (
               <span key={type} style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#64748B' }}>
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: typeColors[type] ?? '#94A3B8', display: 'inline-block' }} />
@@ -720,6 +758,40 @@ function SequenceCompositionDisplay({ comp }: { comp: Record<string, unknown> })
             ))}
           </div>
         </>
+      )}
+
+      {/* Per-residue composition (residue_counts / residue_fractions) */}
+      {residueCounts && residueFractions && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 6, textTransform: 'uppercase' }}>
+            {isNucleotide ? 'Base Composition' : 'Amino Acid Composition'}
+          </div>
+          <div style={{ display: 'flex', height: 16, borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
+            {Object.entries(residueFractions)
+              .sort(([, a], [, b]) => b - a)
+              .map(([res, frac]) => (
+                <div
+                  key={res}
+                  style={{
+                    width: `${frac * 100}%`,
+                    background: resColors[res] ?? '#94A3B8',
+                    minWidth: frac > 0.01 ? 2 : 0,
+                  }}
+                  title={`${res}: ${(frac * 100).toFixed(1)}% (${residueCounts[res] ?? 0})`}
+                />
+              ))}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10 }}>
+            {Object.entries(residueCounts)
+              .sort(([, a], [, b]) => b - a)
+              .map(([res, count]) => (
+                <span key={res} style={{ display: 'flex', alignItems: 'center', gap: 2, color: '#64748B' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 1, background: resColors[res] ?? '#94A3B8', display: 'inline-block' }} />
+                  {res}:{count}
+                </span>
+              ))}
+          </div>
+        </div>
       )}
     </div>
   );
