@@ -142,8 +142,10 @@ export async function wsEnsureFolder(path: string): Promise<void> {
   try {
     await wsCreateFolder(path);
   } catch (err) {
-    // Ignore "already exists" errors
-    if (err instanceof Error && /exists|already/i.test(err.message)) return;
+    // Ignore "already exists" errors — the API may return an error with
+    // "exists/already" text, OR return an empty result array (no objects
+    // created because the folder was already there).
+    if (err instanceof Error && /exists|already|no objects/i.test(err.message)) return;
     throw err;
   }
 }
