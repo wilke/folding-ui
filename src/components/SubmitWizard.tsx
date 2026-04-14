@@ -175,7 +175,12 @@ export default function SubmitWizard(props: WizardProps) {
               </span>
               {seqType === 'dna' && (
                 <span style={{ fontSize: 12, color: '#64748B' }}>
-                  This will be used as the primary protein input. Add DNA entities in the next step if needed.
+                  This will be submitted as a DNA input.
+                </span>
+              )}
+              {seqType === 'rna' && (
+                <span style={{ fontSize: 12, color: '#64748B' }}>
+                  This will be submitted as an RNA input.
                 </span>
               )}
             </div>
