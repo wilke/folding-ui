@@ -1,0 +1,1120 @@
+<title>Predict Structure — Acceptance Testing Guide</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --subtle: #94a3b8;
+    --border: #e2e8f0;
+    --accent: #0d9488;
+    --accent-light: #ccfbf1;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #3b82f6;
+    --purple: #8b5cf6;
+    --p0: #dc2626;
+    --p1: #f59e0b;
+    --p2: #6366f1;
+    --code-bg: #f1f5f9;
+    --nav-bg: rgba(255, 255, 255, 0.95);
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --subtle: #64748b;
+      --border: #334155;
+      --accent: #2dd4bf;
+      --accent-light: #134e4a;
+      --code-bg: #0f172a;
+      --nav-bg: rgba(30, 41, 59, 0.95);
+      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --subtle: #64748b;
+    --border: #334155;
+    --accent: #2dd4bf;
+    --accent-light: #134e4a;
+    --code-bg: #0f172a;
+    --nav-bg: rgba(30, 41, 59, 0.95);
+    --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --subtle: #94a3b8;
+    --border: #e2e8f0;
+    --accent: #0d9488;
+    --accent-light: #ccfbf1;
+    --code-bg: #f1f5f9;
+    --nav-bg: rgba(255, 255, 255, 0.95);
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    max-width: 1400px;
+    margin: 0 auto;
+    gap: 24px;
+    padding: 24px;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; padding: 12px; }
+    .toc { position: static !important; max-height: none !important; }
+  }
+  .toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    font-size: 13px;
+  }
+  .toc h3 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: toc-counter;
+  }
+  .toc li {
+    counter-increment: toc-counter;
+    margin: 0;
+  }
+  .toc a {
+    display: flex;
+    padding: 6px 8px;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .toc a::before {
+    content: counter(toc-counter) ".";
+    color: var(--subtle);
+    margin-right: 8px;
+    font-variant-numeric: tabular-nums;
+    min-width: 20px;
+  }
+  .toc a:hover {
+    background: var(--accent-light);
+    color: var(--accent);
+  }
+  .content {
+    min-width: 0;
+  }
+  h1 {
+    font-size: 32px;
+    margin: 0 0 8px;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-size: 22px;
+    margin: 48px 0 16px;
+    color: var(--text);
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+    letter-spacing: -0.01em;
+    scroll-margin-top: 24px;
+  }
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 12px;
+    color: var(--text);
+  }
+  h4 {
+    font-size: 14px;
+    margin: 20px 0 8px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .hero {
+    background: linear-gradient(135deg, var(--accent) 0%, #059669 100%);
+    color: white;
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 24px;
+  }
+  .hero h1 { color: white; margin-bottom: 8px; }
+  .hero .tagline {
+    font-size: 14px;
+    opacity: 0.95;
+    margin-top: 4px;
+  }
+  .hero .meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    font-size: 12px;
+    opacity: 0.9;
+  }
+  .hero .meta span::before {
+    content: "•";
+    margin-right: 8px;
+  }
+  .hero .meta span:first-child::before { content: ""; margin: 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-light);
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+  }
+  .callout.warn {
+    border-left-color: var(--warning);
+    background: rgba(245, 158, 11, 0.08);
+  }
+  .callout.info {
+    border-left-color: var(--info);
+    background: rgba(59, 130, 246, 0.08);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  table th, table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table th {
+    background: var(--code-bg);
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  table tr:last-child td { border-bottom: 0; }
+  code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 0.9em;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    margin: 16px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .table-wrap table { margin: 0; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: white;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .badge.p0 { background: var(--p0); }
+  .badge.p1 { background: var(--p1); }
+  .badge.p2 { background: var(--p2); }
+  .checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 12px 0;
+  }
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .check-item:hover {
+    background: var(--accent-light);
+    border-color: var(--accent);
+  }
+  .check-item input[type="checkbox"] {
+    margin-top: 2px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  .check-item.done .check-label { opacity: 0.5; text-decoration: line-through; }
+  .check-id {
+    display: inline-block;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-right: 8px;
+    font-weight: 600;
+  }
+  .check-label {
+    font-size: 14px;
+    flex: 1;
+  }
+  .progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 8px 0 4px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--success) 100%);
+    transition: width 0.3s;
+  }
+  .progress-label {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+  .nav-actions {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--nav-bg);
+    backdrop-filter: blur(8px);
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .nav-actions .btn {
+    padding: 6px 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .nav-actions .btn:hover { opacity: 0.9; }
+  .nav-actions .btn.secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 12px 0;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 4px;
+  }
+  .term {
+    display: inline-block;
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0 2px;
+  }
+  ul li { margin: 4px 0; }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 32px 0;
+  }
+  .brainstorm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .brainstorm-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    border-top: 3px solid var(--purple);
+  }
+  .brainstorm-card h4 {
+    color: var(--purple);
+    margin-top: 0;
+  }
+  .brainstorm-card ul {
+    font-size: 13px;
+    color: var(--muted);
+    padding-left: 20px;
+  }
+  .brainstorm-card ul li { margin: 6px 0; }
+  .brainstorm-card ul li strong { color: var(--text); }
+  .arch-diagram {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+    color: var(--text);
+    margin: 12px 0;
+  }
+</style>
+
+<div class="nav-actions">
+  <div style="display:flex; align-items:center; gap:8px;">
+    <span style="font-weight:700; color:var(--accent);">Predict Structure UAT</span>
+    <span style="color:var(--subtle); font-size:12px;">v0.1.x</span>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <span id="progress-label" class="progress-label" style="font-size:12px; margin:0 8px;">0 / 0 done</span>
+    <button class="btn secondary" onclick="resetChecks()">Reset</button>
+    <button class="btn" onclick="exportProgress()">Export progress</button>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="toc">
+    <h3>Sections</h3>
+    <ol>
+      <li><a href="#intro">Introduction</a></li>
+      <li><a href="#before">Before you start</a></li>
+      <li><a href="#auth">Auth & Session</a></li>
+      <li><a href="#nav">Header & Navigation</a></li>
+      <li><a href="#wizard">Standard Wizard</a></li>
+      <li><a href="#expert">Expert Mode</a></li>
+      <li><a href="#workspace">Workspace</a></li>
+      <li><a href="#jobs">Jobs List</a></li>
+      <li><a href="#detail">Job Detail</a></li>
+      <li><a href="#results">Results Tab</a></li>
+      <li><a href="#compare">Compare Tab</a></li>
+      <li><a href="#accuracy">Accuracy & Validity</a></li>
+      <li><a href="#docs">Documentation</a></li>
+      <li><a href="#edge">Edge Cases</a></li>
+      <li><a href="#bugs">Reporting Bugs</a></li>
+      <li><a href="#brainstorm">Brainstorming</a></li>
+      <li><a href="#signoff">Sign-Off</a></li>
+    </ol>
+  </nav>
+
+  <main class="content">
+    <div class="hero">
+      <h1>Predict Structure — Acceptance Testing Guide</h1>
+      <div class="tagline">Final acceptance validation for the BV-BRC Protein Folding Service and UI.</div>
+      <div class="meta">
+        <span>Version 0.1.x</span>
+        <span>Audience: Domain + QA</span>
+        <span>Test environment: localhost:8088/folding/</span>
+      </div>
+    </div>
+
+    <div class="stats" id="section-stats">
+      <div class="stat"><div class="stat-value" id="stat-total">0</div><div class="stat-label">Test items</div></div>
+      <div class="stat"><div class="stat-value" id="stat-p0">0</div><div class="stat-label">P0 (blocking)</div></div>
+      <div class="stat"><div class="stat-value" id="stat-p1">0</div><div class="stat-label">P1 (major)</div></div>
+      <div class="stat"><div class="stat-value" id="stat-p2">0</div><div class="stat-label">P2 (minor)</div></div>
+    </div>
+
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="progress-label"><span id="progress-detail">Not started</span><span id="progress-pct">0%</span></div>
+
+    <h2 id="intro">1. What is Predict Structure?</h2>
+    <p><strong>In one sentence</strong>: A web app that lets scientists submit a protein, DNA, or RNA sequence and get back a predicted 3D structure — computed by one of four state-of-the-art AI models — plus a full quality report and interactive analysis tools.</p>
+
+    <h3>System architecture</h3>
+    <div class="arch-diagram">User Browser (React SPA)
+        │
+        ▼
+Predict Structure UI (this app) ──▶ GoWe workflow engine
+        │                                 │
+        │                                 ▼
+        │                          Tool containers:
+        │                          ├─ Boltz-2
+        │                          ├─ Chai-1
+        │                          ├─ AlphaFold 2
+        │                          └─ ESMFold
+        ▼
+BV-BRC Workspace (inputs + outputs)</div>
+
+    <h3>The four prediction tools</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tool</th><th>Speed</th><th>MSA</th><th>Non-protein</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Boltz-2</strong></td><td>Fast</td><td>Required</td><td>Yes (DNA/RNA/ligand)</td><td>Newest, multi-molecular</td></tr>
+          <tr><td><strong>Chai-1</strong></td><td>Fast</td><td>Required</td><td>Yes</td><td>Multi-molecular, different accuracy trade-offs</td></tr>
+          <tr><td><strong>AlphaFold 2</strong></td><td>Slow</td><td>Self-generates</td><td>Protein only</td><td>The famous one, high accuracy</td></tr>
+          <tr><td><strong>ESMFold</strong></td><td>Fastest</td><td>Not needed</td><td>Protein only</td><td>Runs on CPU, lower accuracy</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Key terms (primer for QA testers)</h3>
+    <ul>
+      <li><span class="term">MSA</span> — Multiple Sequence Alignment. A file of related sequences that gives evolutionary hints. Boltz/Chai need one. AF2 builds its own. ESMFold doesn't need one.</li>
+      <li><span class="term">pLDDT</span> — Per-residue confidence (0–100). &gt;90 very high, 70–90 confident, 50–70 low, &lt;50 very low.</li>
+      <li><span class="term">pTM / ipTM</span> — Overall structure confidence (0–1). &gt;0.8 trustworthy; &lt;0.5 probably wrong.</li>
+      <li><span class="term">PAE</span> — Predicted Aligned Error, in Å. Position error between every pair of residues.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Two ways to use the app.</strong> <em>Standard mode</em> is a guided 4-step wizard with auto tool selection (default for most users). <em>Expert mode</em> exposes per-tool workflows with every parameter. Toggle in the Settings dropdown (gear icon, top-right).
+    </div>
+
+    <h2 id="before">2. Before You Start</h2>
+    <div class="card">
+      <div class="checklist" data-section="before">
+        <label class="check-item"><input type="checkbox"><span class="check-label">You have BV-BRC credentials (username + password)</span></label>
+        <label class="check-item"><input type="checkbox"><span class="check-label">You can reach the app URL</span></label>
+        <label class="check-item"><input type="checkbox"><span class="check-label">You know where to file bugs</span></label>
+        <label class="check-item"><input type="checkbox"><span class="check-label">You have a small protein test sequence (e.g. Crambin, 46 aa)</span></label>
+        <label class="check-item"><input type="checkbox"><span class="check-label">You have a DNA and an RNA test sequence</span></label>
+        <label class="check-item"><input type="checkbox"><span class="check-label">For deep testing: pre-computed MSA, ligand CCD code, SMILES string</span></label>
+      </div>
+    </div>
+    <div class="callout warn">
+      <strong>Test-data size guide.</strong> &lt; 100 residues → fast (&lt;5 min). 100–300 → medium (5–30 min). 300+ → could be an hour depending on the tool.
+    </div>
+
+    <!-- Test sections will be generated by JS -->
+    <div id="test-sections"></div>
+
+    <h2 id="brainstorm">16. Brainstorming — Integration & Bigger Picture</h2>
+    <p>Starting point for a design conversation with stakeholders. Testers should evaluate whether each integration would smooth their real-world workflows.</p>
+
+    <h3>BV-BRC Data Flow Integration</h3>
+    <div class="brainstorm-grid">
+      <div class="brainstorm-card">
+        <h4>Genome → Fold</h4>
+        <ul>
+          <li><strong>"Fold this protein" button</strong> on any protein feature in BV-BRC genome browser</li>
+          <li><strong>Auto-populated sequence</strong> — no copy/paste round-trip</li>
+          <li><strong>Feature enrichment</strong> — predicted structures back-link into BV-BRC protein records</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Proteome batch</h4>
+        <ul>
+          <li><strong>"Fold selected proteins"</strong> from a genome's proteome page</li>
+          <li><strong>Bulk submission</strong> — N jobs with sensible per-tool defaults</li>
+          <li><strong>Progress dashboard</strong> for the batch</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Comparative genomics</h4>
+        <ul>
+          <li><strong>Fold ortholog groups</strong> across strains</li>
+          <li><strong>Auto-populate Compare tab</strong> with structures from related organisms</li>
+          <li><strong>Cross-species divergence</strong> mapping</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Priority target lists</h4>
+        <ul>
+          <li><strong>AMR gene structures</strong> — one-click fold of resistance factors</li>
+          <li><strong>Virulence factors</strong> — auto-fold from pathogen genomes</li>
+          <li><strong>Feed into vaccine / drug design pipelines</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Cross-Tool Workflows</h3>
+    <div class="brainstorm-grid">
+      <div class="brainstorm-card">
+        <h4>Predict → Annotate</h4>
+        <ul>
+          <li><strong>Foldseek search</strong> — find similar structures in local library</li>
+          <li><strong>Auto-populate Compare tab</strong> with structural neighbors</li>
+          <li><strong>InterPro / Pfam overlay</strong> on pLDDT chart and 3D viewer</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Predict → Dock</h4>
+        <ul>
+          <li><strong>Docking-ready outputs</strong> for AutoDock / Vina</li>
+          <li><strong>"Dock this" button</strong> hands off structure + ligand</li>
+          <li><strong>Binding pocket detection</strong> as pre-step</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Multi-tool ensemble</h4>
+        <ul>
+          <li><strong>Run all four tools</strong> on same sequence</li>
+          <li><strong>Consensus Compare view</strong> — agreement/disagreement</li>
+          <li><strong>Confidence-weighted consensus structure</strong></li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Iterative refinement</h4>
+        <ul>
+          <li><strong>Divergent regions → sample more models</strong> in low-confidence areas</li>
+          <li><strong>Reference-guided prediction</strong> using experimental PDB as template</li>
+          <li><strong>Complex assembly pipeline</strong> — subunits → complex</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>External Ecosystem Integration</h3>
+    <div class="brainstorm-grid">
+      <div class="brainstorm-card">
+        <h4>AlphaFold DB & PDB</h4>
+        <ul>
+          <li><strong>Pre-flight AF DB lookup</strong> — save compute if already predicted</li>
+          <li><strong>PDB cross-reference</strong> — offer close matches as starting reference</li>
+          <li><strong>UniProt accession input</strong> — auto-fetch sequence and annotations</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Downstream tools</h4>
+        <ul>
+          <li><strong>ChimeraX / PyMOL export</strong> with confidence coloring baked in</li>
+          <li><strong>ModelArchive submission</strong> — publish to community DB</li>
+          <li><strong>Foldseek search</strong> — find similar structures by geometry</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Documentation & citation</h4>
+        <ul>
+          <li><strong>Methods paragraph auto-generator</strong> — tool version, DB version, parameters</li>
+          <li><strong>Reproducibility ledger</strong> — container digest, DB snapshot</li>
+          <li><strong>Provenance chain</strong> from BV-BRC feature to final structure</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Sharing & collaboration</h4>
+        <ul>
+          <li><strong>Public URL</strong> for a completed job (no BV-BRC account needed to view)</li>
+          <li><strong>Version tree</strong> when user re-runs with different params</li>
+          <li><strong>In-app feedback button</strong> to flag bad predictions</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Anything else? — From a testing perspective</h3>
+    <div class="brainstorm-grid">
+      <div class="brainstorm-card">
+        <h4>Trust & warnings</h4>
+        <ul>
+          <li><strong>Prominent warnings</strong> when pLDDT is low or PAE suggests unreliability</li>
+          <li><strong>Confidence bands</strong> everywhere — no false certainty</li>
+          <li><strong>"Compare against reference"</strong> before publishing</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Accessibility</h4>
+        <ul>
+          <li><strong>Screen reader support</strong></li>
+          <li><strong>Keyboard navigation</strong> throughout</li>
+          <li><strong>WCAG 2.1 AA compliance</strong> audit</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Automation</h4>
+        <ul>
+          <li><strong>Bulk submission</strong> from CSV/FASTA</li>
+          <li><strong>API-first</strong> — documented endpoints for scripting</li>
+          <li><strong>Notification hooks</strong> — email / Slack / webhook when done</li>
+        </ul>
+      </div>
+      <div class="brainstorm-card">
+        <h4>Quotas & governance</h4>
+        <ul>
+          <li><strong>Cost / compute dashboard</strong> per user</li>
+          <li><strong>Scheduled re-runs</strong> with newer tool versions</li>
+          <li><strong>Data retention policies</strong> — how long do outputs live?</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 id="signoff">17. Sign-Off</h2>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Area</th><th>Owner</th><th>Status</th><th>Notes</th></tr></thead>
+          <tbody id="signoff-table"></tbody>
+        </table>
+      </div>
+      <div style="margin-top: 16px;">
+        <p><strong>Overall recommendation:</strong> ☐ Ready for release ☐ Ready with minor fixes ☐ Not ready — significant work needed</p>
+        <p><strong>Signed:</strong> ________________________ &nbsp;&nbsp; <strong>Date:</strong> ________________________</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ── Data model ───────────────────────────────────────────────
+  const sections = [
+    { id: 'auth', num: 3, title: 'Auth & Session', priority: 'p0', items: [
+      ['AC-1.1', 'Visiting /folding/submit without a token redirects to /folding/login'],
+      ['AC-1.2', 'Login form accepts valid BV-BRC credentials and redirects to /folding/submit'],
+      ['AC-1.3', 'Login form rejects invalid credentials with a clear error message'],
+      ['AC-1.4', 'After login, username appears in the header'],
+      ['AC-1.5', 'Token persists across a full page reload (F5)'],
+      ['AC-1.6', 'Token persists across a browser tab close and reopen'],
+      ['AC-1.7', 'Logout button clears the token and returns to /folding/login'],
+      ['AC-1.8', 'After token expiration, next protected action redirects to login (not a crash)'],
+      ['AC-1.9', 'Auth Token row in Settings shows a truncated token with a working Copy button'],
+    ]},
+    { id: 'nav', num: 4, title: 'Header & Navigation', priority: 'p1', items: [
+      ['AC-2.1', 'Brand link "Predict Structure" returns to home from any page'],
+      ['AC-2.2', '"Submit" nav link goes to /folding/submit'],
+      ['AC-2.3', '"Jobs" nav link goes to /folding/jobs'],
+      ['AC-2.4', 'Active page is visually distinct in nav'],
+      ['AC-2.5', 'Settings dropdown opens on click, closes on click-outside'],
+      ['AC-2.6', 'Both color schemes (Teal Science, CEPI Heritage) apply immediately'],
+      ['AC-2.7', 'Color scheme choice persists across reloads'],
+      ['AC-2.8', 'Workflow Mode switch (Standard ↔ Expert) is reflected on the Submit page'],
+    ]},
+    { id: 'wizard', num: 5, title: 'Standard Mode Wizard', priority: 'p0', subsections: [
+      { title: 'Step 1 — Sequence', items: [
+        ['AC-3.1', 'Paste a protein FASTA → "Detected: Protein" green badge appears'],
+        ['AC-3.2', 'Paste a DNA sequence → "Detected: DNA" blue badge'],
+        ['AC-3.3', 'Paste an RNA sequence (contains U, no T) → "Detected: RNA" purple badge'],
+        ['AC-3.4', 'Paste ambiguous/junk → "Detected: Unknown" grey badge'],
+        ['AC-3.5', 'Upload a .fasta file → contents appear in textarea, badge updates'],
+        ['AC-3.6', '"Browse Workspace" opens the workspace modal'],
+        ['AC-3.7', 'Selecting a file from workspace populates the input as workspace://…'],
+        ['AC-3.8', '"Next" button is disabled when sequence is empty'],
+        ['AC-3.9', 'Sequence text survives navigating forward and back'],
+        ['AC-3.10', 'Very long sequence (500+ aa) does not break the layout'],
+      ]},
+      { title: 'Step 2 — Components (Additional Entities)', items: [
+        ['AC-4.1', 'Can add a DNA entity (paste FASTA)'],
+        ['AC-4.2', 'Can add an RNA entity (upload file)'],
+        ['AC-4.3', 'Can add a ligand by CCD code (e.g. ATP)'],
+        ['AC-4.4', 'Can add a SMILES string'],
+        ['AC-4.5', 'Can add a glycan identifier'],
+        ['AC-4.6', 'Chip-style display for each added entity shows type + name'],
+        ['AC-4.7', 'Removing an entity works (X or trash icon)'],
+        ['AC-4.8', 'Entity count badge updates as entities are added/removed'],
+        ['AC-4.9', 'Step can be skipped entirely (all entities optional)'],
+      ]},
+      { title: 'Step 3 — Alignment (MSA)', items: [
+        ['AC-5.1', 'Can paste MSA text'],
+        ['AC-5.2', 'Can upload .a3m, .sto, .pqt files'],
+        ['AC-5.3', 'Can pick MSA from workspace'],
+        ['AC-5.4', 'Tool impact info box updates when MSA is added/removed'],
+        ['AC-5.5', 'Step can be skipped (MSA is optional)'],
+      ]},
+      { title: 'Step 4 — Review & Submit', items: [
+        ['AC-6.1', 'Tool selector shows all five options (auto/boltz/chai/alphafold/esmfold)'],
+        ['AC-6.2', 'With "auto", prediction bar shows a specific tool and reason'],
+        ['AC-6.3', 'Auto changes tool when MSA is toggled (Boltz w/ MSA vs AlphaFold w/o)'],
+        ['AC-6.4', 'Auto changes tool when device is CPU (should prefer ESMFold)'],
+        ['AC-6.5', 'Auto changes tool when non-protein entities present (excludes AF/ESM)'],
+        ['AC-6.6', 'Input Summary correctly reports sequence, entity count, MSA state'],
+        ['AC-6.7', 'Detected sequence type badge shown next to sequence line'],
+        ['AC-6.8', 'Output Folder field is prefilled with user\'s home directory'],
+        ['AC-6.9', '"Browse" opens workspace folder-picker mode'],
+        ['AC-6.10', 'Resource estimate (approximate) is shown'],
+        ['AC-6.11', 'Preview button shows the exact POST /submissions payload'],
+        ['AC-6.12', 'Preview JSON — DNA → inputs.dna, RNA → inputs.rna, not inputs.protein'],
+        ['AC-6.13', 'Preview JSON has report_format: "all" (not user-selectable)'],
+        ['AC-6.14', 'Preview JSON does not reference an MSA server (removed by policy)'],
+        ['AC-6.15', 'Submit Job creates a submission and navigates to its job page'],
+        ['AC-6.16', 'Submitting without a sequence is prevented'],
+      ]},
+    ]},
+    { id: 'expert', num: 6, title: 'Expert Mode — Advanced Submit', priority: 'p1', items: [
+      ['AC-7.1', 'Switching to Expert mode swaps the interface'],
+      ['AC-7.2', 'Tool selector chooses a single per-tool workflow (no "auto")'],
+      ['AC-7.3', 'Full parameter form is exposed for the selected tool'],
+      ['AC-7.4', 'Boltz-2: diffusion_samples, recycling_steps, sampling_steps, use_potentials, write_full_pae'],
+      ['AC-7.5', 'Chai-1: num_diffn_samples, num_trunk_recycles, num_diffn_timesteps, seed, constraint_path, template_hits_path'],
+      ['AC-7.6', 'AlphaFold: model_preset, db_preset, random_seed, use_gpu_relax, use_precomputed_msas'],
+      ['AC-7.7', 'ESMFold: num_recycles, chunk_size, max_tokens_per_batch, fp16, cpu_only'],
+      ['AC-7.8', '"Reset" restores tool defaults'],
+      ['AC-7.9', 'Preview & Submit work identically to Standard mode'],
+      ['AC-7.10', 'MSA input is hidden for ESMFold'],
+      ['AC-8.1', 'Boltz YAML Builder — with Boltz + YAML toggle, structured builder appears'],
+      ['AC-8.2', 'YAML Builder — can add multiple proteins, auto chain IDs A/B/C'],
+      ['AC-8.3', 'YAML Builder — MSA mode per entity (auto/empty)'],
+      ['AC-8.4', 'YAML Builder — cyclic flag per entity'],
+      ['AC-8.5', 'YAML Builder — modifications (position + CCD code)'],
+      ['AC-8.6', 'YAML Builder — ligands as CCD or SMILES'],
+      ['AC-8.7', 'YAML Builder — constraints: covalent bonds, binding pockets, contacts'],
+      ['AC-8.8', 'YAML Builder — live YAML preview updates as entities change'],
+      ['AC-8.9', 'YAML Builder — generated YAML is valid Boltz v1 format (spot-check)'],
+    ]},
+    { id: 'workspace', num: 7, title: 'Workspace Integration', priority: 'p0', items: [
+      ['AC-9.1', 'WorkspaceBrowser opens as a modal'],
+      ['AC-9.2', 'Breadcrumb shows current path'],
+      ['AC-9.3', '.. (parent) navigation works'],
+      ['AC-9.4', 'Folders show folder icon; files show file icon + size'],
+      ['AC-9.5', 'Clicking a folder opens it'],
+      ['AC-9.6', 'In file mode, clicking a file selects it and closes the modal'],
+      ['AC-9.7', 'In folder mode, "Select This Folder" confirms current path'],
+      ['AC-9.8', 'Empty folder shows "Empty folder" message (no crash)'],
+      ['AC-9.9', 'Unauthenticated browser attempt shows login prompt'],
+      ['AC-9.10', 'Submitting when input folder already exists is idempotent (no crash)'],
+    ]},
+    { id: 'jobs', num: 8, title: 'Jobs List Page', priority: 'p1', items: [
+      ['AC-10.1', 'Table lists all user jobs'],
+      ['AC-10.2', 'Columns: Job ID, Name, Workflow, Tool, State, Submitted, Runtime'],
+      ['AC-10.3', 'State pills filter (All / Running / Completed / Failed / Pending)'],
+      ['AC-10.4', 'Tool workflow pills filter results'],
+      ['AC-10.5', 'Report workflow pills filter results'],
+      ['AC-10.6', 'Page size selector (10/20/50/100) works'],
+      ['AC-10.7', 'Prev/Next pagination present at top AND bottom'],
+      ['AC-10.8', 'Empty result set shows a friendly "no jobs" message'],
+      ['AC-10.9', 'Auto-refresh triggers roughly every 10 s'],
+      ['AC-10.10', 'Clicking a job row navigates to its detail page'],
+    ]},
+    { id: 'detail', num: 9, title: 'Job Detail Page', priority: 'p0', subsections: [
+      { title: 'Overview tab', items: [
+        ['AC-11.1', 'Header shows job ID, state badge, LIVE badge if streaming'],
+        ['AC-11.2', 'Runtime updates while running; freezes on completion'],
+        ['AC-11.3', 'Workflow name is a link to GoWe API details'],
+        ['AC-11.4', 'Tool, submitted date, run name shown'],
+        ['AC-11.5', 'Inputs and Parameters JSON is collapsible'],
+        ['AC-11.6', 'Success banner appears for completed jobs'],
+        ['AC-11.7', 'Failure banner shows error code and message for failed jobs'],
+        ['AC-11.8', 'Cancel action works on running jobs'],
+      ]},
+      { title: 'Report tab', items: [
+        ['AC-12.1', 'HTML report loads in an inline iframe'],
+        ['AC-12.2', '"Open in new tab" link works'],
+        ['AC-12.3', 'For jobs without a report yet, placeholder message shows'],
+      ]},
+      { title: 'Tasks tab', items: [
+        ['AC-13.1', 'Task table lists each step with state, runtime, exit code'],
+        ['AC-13.2', 'Expanding a task shows stdout and stderr'],
+        ['AC-13.3', 'Task Progress bar reflects success/running/failed counts'],
+      ]},
+      { title: 'Files tab', items: [
+        ['AC-14.1', 'Two sections: Inputs and Outputs'],
+        ['AC-14.2', 'Inputs listed with name, parameter name, download link'],
+        ['AC-14.3', 'Outputs grouped by output key'],
+        ['AC-14.4', 'File sizes shown in human-readable units'],
+        ['AC-14.5', 'Download links work'],
+      ]},
+    ]},
+    { id: 'results', num: 10, title: 'Results Tab', priority: 'p0', items: [
+      ['AC-15.1', 'Molecule type badge (Protein/DNA/RNA) at top with description text'],
+      ['AC-15.2', 'AnalysisMetrics grid: Residues, MW, Mean pLDDT, Confident %, pTM, Mean PAE, Contacts, Structure'],
+      ['AC-15.3', 'For DNA/RNA, MW hidden or 0 (not NaN)'],
+      ['AC-15.4', 'For DNA, structure fractions section is appropriate'],
+      ['AC-15.5', '3D Structure viewer loads with cartoon representation'],
+      ['AC-15.6', 'Structure color controls (Spectrum/pLDDT/Chain/Secondary) all work'],
+      ['AC-15.7', 'Render style controls (Cartoon/Stick/Sphere) all work'],
+      ['AC-15.8', 'CIF-format outputs display correctly (mmcif)'],
+      ['AC-15.9', 'Download button provides correct file (PDB or CIF)'],
+      ['AC-15.10', 'pLDDT chart shows per-residue confidence, color-coded'],
+      ['AC-15.11', 'Confidence card: scalar scores (pTM, ipTM, confidence) with progress bars'],
+      ['AC-15.12', 'Metadata card shows run parameters'],
+      ['AC-15.13', 'Secondary Structure bar renders (H=red, E=blue, C=grey)'],
+      ['AC-15.14', 'Hovering SS bar shows residue number, SS type, pLDDT'],
+      ['AC-15.15', 'PAE matrix heatmap renders with domain overlays'],
+      ['AC-15.16', 'PAE hover tooltip shows residue pair and PAE value'],
+      ['AC-15.17', 'PAE click-to-zoom on domains, legend reset works'],
+      ['AC-15.18', 'Contact map renders (binary + heatmap modes)'],
+      ['AC-15.19', 'Contact map SS axis strips are colored'],
+      ['AC-15.20', 'Contact statistics (short/medium/long/very-long) shown'],
+      ['AC-15.21', 'Composition — protein: hydrophobic/polar/positive/negative/special bars'],
+      ['AC-15.22', 'Composition — DNA: purine/pyrimidine + per-base A/T/G/C breakdown'],
+      ['AC-15.23', 'Composition — RNA: A/U/G/C bases with U shown (not T)'],
+      ['AC-15.24', 'Glossary panel expands and shows term definitions'],
+    ]},
+    { id: 'compare', num: 11, title: 'Compare Tab', priority: 'p0', items: [
+      ['AC-16.1', 'Compare tab visible on completed jobs (even with only one structure)'],
+      ['AC-16.2', 'Model A and Model B selectors are side-by-side'],
+      ['AC-16.3', 'Source: This Job — lists structure files from current job'],
+      ['AC-16.4', 'Source: Other Job — lists only completed jobs (excluding current)'],
+      ['AC-16.5', 'Other Job search filters by name, ID, workflow'],
+      ['AC-16.6', 'Selecting a job shows its structure files'],
+      ['AC-16.7', '"← Back to jobs" returns to job list'],
+      ['AC-16.8', 'Source: Workspace — opens workspace file picker'],
+      ['AC-16.9', 'Workspace-picked .cif files parse and display correctly'],
+      ['AC-16.10', 'Workspace-picked .pdb files parse and display correctly'],
+      ['AC-16.11', 'Cα RMSD is displayed and non-zero for different structures'],
+      ['AC-16.12', 'For identical structures, RMSD is 0.00 Å'],
+      ['AC-16.13', 'Divergent regions table lists ranges with mean/max Å'],
+      ['AC-16.14', 'Superposition viewer shows both models overlaid (green + amber)'],
+      ['AC-16.15', 'Per-residue distance chart renders'],
+      ['AC-16.16', 'pLDDT overlay chart shows both models'],
+      ['AC-16.17', 'Mean pLDDT (A/B) combined box shown with color-coded values'],
+      ['AC-16.18', 'pLDDT ratio (A:B) box shown, normalized so larger side ≥ 1'],
+      ['AC-16.19', 'With only 1 structure available, prompt to add a second source'],
+      ['AC-16.20', 'Loading state shown while fetching structures'],
+    ]},
+    { id: 'accuracy', num: 12, title: 'Accuracy & Validity', priority: 'p0', subsections: [
+      { title: 'Known-structure regression tests', items: [
+        ['AC-17.1', 'Crambin (1CRN, 46 aa) — Boltz Cα RMSD < 2 Å vs 1CRN'],
+        ['AC-17.2', 'Ubiquitin (1UBQ, 76 aa) — All four tools Cα RMSD < 2 Å'],
+        ['AC-17.3', 'Lysozyme (1LYZ, 129 aa) — AF2 Cα RMSD < 1 Å'],
+        ['AC-17.4', 'Small DNA test — Boltz DNA-only prediction runs'],
+        ['AC-17.5', 'Confidence scores high (>90 pLDDT) for well-studied proteins'],
+      ]},
+      { title: 'Sequence-type routing (recent fix)', items: [
+        ['AC-18.1', 'Paste DNA in Standard → Preview shows inputs.dna (not inputs.protein)'],
+        ['AC-18.2', 'Paste RNA → Preview shows inputs.rna'],
+        ['AC-18.3', 'Uploaded file named correctly (dna.fasta, rna.fasta, protein.fasta)'],
+        ['AC-18.4', 'Predict tool receives correct --protein/--dna/--rna flag (check task logs)'],
+      ]},
+      { title: 'Report consistency', items: [
+        ['AC-19.1', 'Values in Results tab match values in HTML Report tab'],
+        ['AC-19.2', 'Residue count matches across pLDDT chart, SS bar, PAE heatmap'],
+        ['AC-19.3', 'Contact statistics match visual contact map density'],
+        ['AC-19.4', 'analysis.json fields (pLDDT, PAE, contacts, SS) exist and non-empty'],
+      ]},
+      { title: 'Multi-model consistency (num_samples > 1)', items: [
+        ['AC-20.1', 'Requesting num_samples: 5 produces 5 output structures'],
+        ['AC-20.2', 'All 5 models appear in Compare tab "This Job" source'],
+        ['AC-20.3', 'Model-to-model RMSD small for well-folded regions, higher for loops'],
+      ]},
+    ]},
+    { id: 'docs', num: 13, title: 'Documentation & Discoverability', priority: 'p1', items: [
+      ['AC-21.1', 'README explains how to build, run, and access the app'],
+      ['AC-21.2', 'Glossary panel explains pLDDT, PAE, pTM, contact map, SS'],
+      ['AC-21.3', 'Tooltips/help boxes present in the wizard'],
+      ['AC-21.4', 'Error messages are user-friendly (not raw stack traces)'],
+      ['AC-21.5', 'Confidence bands are color-coded and legend is visible'],
+      ['AC-21.6', 'File format expectations documented (FASTA header, MSA formats)'],
+      ['AC-21.7', 'First-time user can complete a submission without an admin'],
+      ['AC-21.8', 'All four tools have a short description users can find in the UI'],
+    ]},
+    { id: 'edge', num: 14, title: 'Cross-Cutting & Edge Cases', priority: 'p2', items: [
+      ['AC-22.1', 'Very short sequence (< 20 aa) — either runs or fails gracefully'],
+      ['AC-22.2', 'Very long sequence (> 1000 aa) — either runs or gives "too long" error'],
+      ['AC-22.3', 'Duplicate submission same folder — no silent overwrite, no crash'],
+      ['AC-22.4', 'Invalid characters in sequence — clear validation message'],
+      ['AC-22.5', 'Concurrent jobs from same user — both run and appear in list'],
+      ['AC-22.6', 'Job cancellation mid-run — state → cancelled, tasks stop'],
+      ['AC-22.7', 'Browser tab open for 1 hour — auth refreshes, SSE reconnects'],
+      ['AC-22.8', 'Slow network — loading spinners, no silent failures'],
+      ['AC-22.9', 'Workspace 502 — clear error, not "undefined is not an object"'],
+      ['AC-22.10', 'All themes (light/dark/CEPI) render legibly'],
+      ['AC-22.11', 'Mobile viewport (375 × 812) — layout does not break horizontally'],
+    ]},
+    { id: 'bugs', num: 15, title: 'Reporting Bugs', priority: null, isText: true, content: `
+      <p>For each finding, capture:</p>
+      <ul>
+        <li><strong>Test ID</strong> (e.g. AC-15.16)</li>
+        <li><strong>Steps to reproduce</strong> (numbered, precise)</li>
+        <li><strong>Expected behavior</strong></li>
+        <li><strong>Actual behavior</strong></li>
+        <li><strong>Screenshot or screen recording</strong></li>
+        <li><strong>Browser + version</strong> (Chrome/Safari/Firefox)</li>
+        <li><strong>Job ID</strong> (if applicable)</li>
+        <li><strong>Console errors</strong> (F12 → Console tab)</li>
+        <li><strong>Severity</strong>: P0 (blocking), P1 (major), P2 (minor)</li>
+      </ul>
+      <div class="callout info">Attach the failing job's full ID so developers can inspect its outputs directly.</div>
+    `},
+  ];
+
+  // ── Render ──────────────────────────────────────────────────
+  function priorityBadge(p) {
+    if (!p) return '';
+    const labels = { p0: 'P0 · blocking', p1: 'P1 · major', p2: 'P2 · nice-to-have' };
+    return `<span class="badge ${p}">${labels[p]}</span>`;
+  }
+
+  function renderItems(items) {
+    return items.map(([id, label]) => `
+      <label class="check-item">
+        <input type="checkbox" data-id="${id}">
+        <span class="check-label"><span class="check-id">${id}</span>${label}</span>
+      </label>
+    `).join('');
+  }
+
+  function renderSection(s) {
+    if (s.isText) {
+      return `<h2 id="${s.id}">${s.num}. ${s.title}</h2><div class="card">${s.content}</div>`;
+    }
+    let body = '';
+    if (s.subsections) {
+      body = s.subsections.map(sub => `
+        <h3>${sub.title}</h3>
+        <div class="checklist">${renderItems(sub.items)}</div>
+      `).join('');
+    } else {
+      body = `<div class="checklist">${renderItems(s.items)}</div>`;
+    }
+    return `<h2 id="${s.id}">${s.num}. ${s.title}${priorityBadge(s.priority)}</h2><div class="card">${body}</div>`;
+  }
+
+  document.getElementById('test-sections').innerHTML = sections.map(renderSection).join('');
+
+  // Build sign-off table
+  document.getElementById('signoff-table').innerHTML = sections
+    .filter(s => !s.isText)
+    .map(s => `<tr><td>${s.title}</td><td></td><td>☐ Pass ☐ Fail ☐ N/A</td><td></td></tr>`)
+    .join('');
+
+  // ── Stats + progress ────────────────────────────────────────
+  function collectItems() {
+    const all = [];
+    for (const s of sections) {
+      if (s.isText) continue;
+      if (s.subsections) s.subsections.forEach(sub => sub.items.forEach(([id]) => all.push({id, p: s.priority})));
+      else s.items.forEach(([id]) => all.push({id, p: s.priority}));
+    }
+    return all;
+  }
+  const allItems = collectItems();
+  document.getElementById('stat-total').textContent = allItems.length;
+  document.getElementById('stat-p0').textContent = allItems.filter(i => i.p === 'p0').length;
+  document.getElementById('stat-p1').textContent = allItems.filter(i => i.p === 'p1').length;
+  document.getElementById('stat-p2').textContent = allItems.filter(i => i.p === 'p2').length;
+
+  // ── Persistence ─────────────────────────────────────────────
+  const STORAGE_KEY = 'predict-structure-uat-progress';
+
+  function loadProgress() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw);
+    } catch { return {}; }
+  }
+  function saveProgress(state) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+  }
+
+  const state = loadProgress();
+
+  // Restore state
+  document.querySelectorAll('input[type="checkbox"][data-id]').forEach(cb => {
+    if (state[cb.dataset.id]) {
+      cb.checked = true;
+      cb.closest('.check-item').classList.add('done');
+    }
+  });
+
+  function updateProgress() {
+    const total = allItems.length;
+    let done = 0;
+    document.querySelectorAll('input[type="checkbox"][data-id]').forEach(cb => {
+      if (cb.checked) done++;
+    });
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = `${done} / ${total} done`;
+    document.getElementById('progress-detail').textContent = done === 0 ? 'Not started' : done === total ? 'All items checked' : `${done} of ${total} items checked`;
+    document.getElementById('progress-pct').textContent = pct + '%';
+  }
+  updateProgress();
+
+  // Bind change events
+  document.addEventListener('change', (e) => {
+    const cb = e.target;
+    if (cb.matches('input[type="checkbox"][data-id]')) {
+      state[cb.dataset.id] = cb.checked;
+      saveProgress(state);
+      cb.closest('.check-item').classList.toggle('done', cb.checked);
+      updateProgress();
+    }
+  });
+
+  // Reset
+  function resetChecks() {
+    if (!confirm('Reset all check marks? This clears saved progress.')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    document.querySelectorAll('input[type="checkbox"][data-id]').forEach(cb => {
+      cb.checked = false;
+      cb.closest('.check-item').classList.remove('done');
+    });
+    for (const k in state) delete state[k];
+    updateProgress();
+  }
+  window.resetChecks = resetChecks;
+
+  // Export
+  function exportProgress() {
+    const total = allItems.length;
+    const done = Object.keys(state).filter(k => state[k]).length;
+    const rows = allItems.map(i => `${i.id}\t${i.p ? i.p.toUpperCase() : '-'}\t${state[i.id] ? 'DONE' : 'todo'}`).join('\n');
+    const text = `# Predict Structure UAT Progress
+# Exported: ${new Date().toISOString()}
+# ${done} / ${total} items complete (${Math.round(done/total*100)}%)
+
+Test ID\tPriority\tStatus
+${rows}
+`;
+    const blob = new Blob([text], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `uat-progress-${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  window.exportProgress = exportProgress;
+</script>
